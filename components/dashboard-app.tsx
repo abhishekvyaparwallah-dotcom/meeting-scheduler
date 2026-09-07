@@ -43,6 +43,8 @@ type SessionShape = {
     employeeId: string;
     name?: string | null;
     email?: string | null;
+    dailyTarget?: number;
+    customScript?: string;
   };
 };
 
@@ -58,6 +60,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<AppUser | null>(null);
 
   const [view, setView] = useState<View>(
     activeRoute === 'crm' ? 'meetings' : activeRoute === 'calling' ? 'calling' : 'calendar'
@@ -83,7 +86,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
     employeeId: '',
     phone: '',
     customScript: '',
-    dailyTarget: 50,
+    dailyTarget: 3,
   });
 
   const [editingScriptUserId, setEditingScriptUserId] = useState<string | null>(null);
@@ -91,7 +94,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
   const [editingPasswordUserId, setEditingPasswordUserId] = useState<string | null>(null);
   const [newPasswordText, setNewPasswordText] = useState('');
   const [editingTargetUserId, setEditingTargetUserId] = useState<string | null>(null);
-  const [editingTargetNumber, setEditingTargetNumber] = useState<number>(50);
+  const [editingTargetNumber, setEditingTargetNumber] = useState<number>(3);
 
   const visibleMeetings = useMemo(
     () => (isAdmin ? meetings : meetings.filter((m) => m.assignedEmployeeId === session.user.employeeId)),
@@ -126,6 +129,15 @@ export default function DashboardApp({ session, activeRoute }: Props) {
         const logsJson = await logsRes.json();
         setUsers(usersJson.users ?? []);
         setAuditLogs(logsJson.logs ?? []);
+      } else {
+        const profileRes = await fetch('/api/user/profile');
+        if (profileRes.ok) {
+          const profileJson = await profileRes.json();
+          if (profileJson.user) {
+            setCurrentUserProfile(profileJson.user);
+            setUsers([profileJson.user]);
+          }
+        }
       }
     } catch {
       setBannerMessage({ text: 'Failed to load live data.', type: 'error' });
@@ -513,8 +525,10 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                 leads={leads}
                 users={users}
                 isAdmin={isAdmin}
-                currentUserName={session.user.name ?? 'Telecaller'}
-                currentEmployeeId={session.user.employeeId ?? ''}
+                currentUserName={currentUserProfile?.name ?? session.user.name ?? 'Telecaller'}
+                currentEmployeeId={currentUserProfile?.employeeId ?? session.user.employeeId ?? ''}
+                currentDailyTarget={currentUserProfile?.dailyTarget ?? (session.user as any)?.dailyTarget}
+                currentScript={currentUserProfile?.customScript ?? (session.user as any)?.customScript}
                 onUpdateLeadStatus={handleUpdateLeadStatus}
                 onBookMeetingFromLead={(lead) => {
                   setPrefilledLead(lead);

@@ -37,6 +37,8 @@ type Props = {
   onAddNewLead: (newLeads: Partial<CallingLead> | Partial<CallingLead>[]) => Promise<void>;
   currentUserName?: string;
   currentEmployeeId?: string;
+  currentDailyTarget?: number;
+  currentScript?: string;
 };
 
 const DISPOSITION_CONFIG: Record<CallDisposition, { label: string; bg: string; text: string; border: string }> = {
@@ -58,6 +60,8 @@ export default function CallingCRMView({
   onAddNewLead,
   currentUserName = 'Telecaller',
   currentEmployeeId = '',
+  currentDailyTarget,
+  currentScript,
 }: Props) {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<string>('ALL');
@@ -75,13 +79,18 @@ export default function CallingCRMView({
 
   // Current logged in Telecaller user
   const currentTelecaller = useMemo(() => {
-    return users.find((u) => u.name === currentUserName || u.employeeId === currentUserName);
-  }, [users, currentUserName]);
+    return users.find(
+      (u) =>
+        (currentEmployeeId && u.employeeId?.toLowerCase() === currentEmployeeId.toLowerCase()) ||
+        (currentUserName && u.name?.toLowerCase() === currentUserName.toLowerCase()) ||
+        u.employeeId === currentUserName
+    );
+  }, [users, currentUserName, currentEmployeeId]);
 
   // Telecaller assigned custom script
   const telecallerScript = useMemo(() => {
-    return currentTelecaller?.customScript || '';
-  }, [currentTelecaller]);
+    return currentTelecaller?.customScript || currentScript || '';
+  }, [currentTelecaller, currentScript]);
 
   // Telecaller-specific performance breakdown for Admin
   const telecallerPerformance = useMemo(() => {
@@ -169,8 +178,8 @@ export default function CallingCRMView({
     const dialedCount = connectedCount + bookedCount + notInterestedCount + callCutCount;
     const telecallers = users.filter((u) => u.role === 'TELECALLER');
     const dailyTarget = isAdmin
-      ? telecallers.reduce((sum, u) => sum + (u.dailyTarget ?? 50), 0) || 50
-      : (currentTelecaller?.dailyTarget ?? 50);
+      ? telecallers.reduce((sum, u) => sum + (u.dailyTarget ?? 3), 0) || 3
+      : (currentDailyTarget ?? currentTelecaller?.dailyTarget ?? 3);
     const targetProgress = Math.min(100, Math.round((dialedCount / (dailyTarget || 1)) * 100));
 
     return {

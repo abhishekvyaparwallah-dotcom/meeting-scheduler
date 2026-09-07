@@ -35,6 +35,8 @@ export const authConfig: NextAuthConfig = {
         token.role = (user as any).role;
         token.employeeId = (user as any).employeeId;
         token.userId = user.id;
+        token.dailyTarget = (user as any).dailyTarget;
+        token.customScript = (user as any).customScript;
       }
       return token;
     },
@@ -43,6 +45,8 @@ export const authConfig: NextAuthConfig = {
         session.user.role = token.role as any;
         session.user.employeeId = token.employeeId as string;
         session.user.id = token.userId as string;
+        (session.user as any).dailyTarget = token.dailyTarget as number;
+        (session.user as any).customScript = token.customScript as string;
       }
       return session;
     },

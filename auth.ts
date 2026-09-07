@@ -64,6 +64,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 email: user.email,
                 role: user.role,
                 employeeId: user.employeeId,
+                dailyTarget: user.dailyTarget ?? 3,
+                customScript: user.customScript ?? '',
               };
             }
             // User exists in database but password didn't match -> reject immediately
@@ -85,6 +87,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: fallback.email,
             role: fallback.role,
             employeeId: fallback.employeeId,
+            dailyTarget: 3,
+            customScript: '',
           };
         }
 
