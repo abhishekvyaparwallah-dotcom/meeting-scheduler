@@ -177,3 +177,115 @@ export async function sendAdminMeetingNotification({
     };
   }
 }
+
+interface LoginOtpPayload {
+  email: string;
+  name: string;
+  otp: string;
+  role: string;
+}
+
+/**
+ * Sends a high-security 6-digit OTP verification email for portal login
+ */
+export async function sendLoginOtpEmail({
+  email,
+  name,
+  otp,
+  role,
+}: LoginOtpPayload): Promise<{ success: boolean; message: string }> {
+  const fromEmail = process.env.EMAIL_FROM || '"Vyapar Wallah Security" <no-reply@vyaparwallah.com>';
+  const subject = `🔐 [Security Code: ${otp}] Login Verification - Vyapar Wallah`;
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #0f172a; }
+    .card { max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 18px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06); }
+    .header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 24px; text-align: center; color: #ffffff; }
+    .logo-badge { display: inline-block; background-color: #ff6a00; color: #ffffff; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .title { font-size: 22px; font-weight: 900; margin-top: 12px; color: #ffffff; letter-spacing: -0.5px; }
+    .content { padding: 28px 24px; text-align: center; }
+    .greeting { font-size: 15px; font-weight: 600; color: #334155; margin-bottom: 8px; }
+    .instructions { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 24px; }
+    .otp-box { background: #f8fafc; border: 2px dashed #ff6a00; border-radius: 14px; padding: 18px; margin: 20px 0; text-align: center; }
+    .otp-code { font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #0f172a; margin: 4px 0; }
+    .otp-expiry { font-size: 12px; font-weight: 700; color: #ff6a00; text-transform: uppercase; margin-top: 4px; }
+    .warning-box { background-color: #fff7ed; border-radius: 10px; border-left: 4px solid #ea580c; padding: 12px 14px; text-align: left; font-size: 12px; color: #9a3412; line-height: 1.5; margin-top: 24px; }
+    .footer { background-color: #f8fafc; padding: 18px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <span class="logo-badge">Vyapar Wallah Portal</span>
+      <div class="title">Two-Factor Authentication</div>
+    </div>
+
+    <div class="content">
+      <div class="greeting">Hello, ${name} (${role}) 👋</div>
+      <div class="instructions">
+        A login attempt was initiated for your Vyapar Wallah account. Use the one-time security code below to complete sign in.
+      </div>
+
+      <div class="otp-box">
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Your 6-Digit OTP</div>
+        <div class="otp-code">${otp}</div>
+        <div class="otp-expiry">⏱️ Valid for 5 minutes only</div>
+      </div>
+
+      <div class="warning-box">
+        🔒 <strong>Security Notice:</strong> Never share this OTP with anyone, including staff. If you did not request this code, please reset your password immediately.
+      </div>
+    </div>
+
+    <div class="footer">
+      Vyapar Wallah Meeting Scheduler & CRM • Automated Security System
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  const transporter = getTransporter();
+
+  if (!transporter) {
+    console.log('\n================== [LOGIN 2FA OTP EMAIL] ==================');
+    console.log(`To: ${email} (${name} - ${role})`);
+    console.log(`Subject: ${subject}`);
+    console.log(`🔐 OTP SECURITY CODE: >>> ${otp} <<<`);
+    console.log('Validity: 5 Minutes');
+    console.log('-----------------------------------------------------------');
+    console.log('NOTE: To send live emails to inbox, configure SMTP_HOST, SMTP_USER, and SMTP_PASS in .env.local.');
+    console.log('===========================================================\n');
+
+    return {
+      success: true,
+      message: 'OTP preview generated in server console (SMTP credentials not configured).',
+    };
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: fromEmail,
+      to: email,
+      subject,
+      html: htmlContent,
+    });
+
+    console.log(`[OTP SENT] Security verification code delivered to ${email}: Message ID ${info.messageId}`);
+    return {
+      success: true,
+      message: `OTP delivered to ${email}`,
+    };
+  } catch (error: any) {
+    console.error('[OTP ERROR] Failed to send OTP email via SMTP:', error);
+    return {
+      success: false,
+      message: error?.message || 'Failed to send OTP email via SMTP.',
+    };
+  }
+}

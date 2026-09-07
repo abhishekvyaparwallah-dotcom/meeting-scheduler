@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Trophy, Sparkles, Flame, CheckCircle, X } from 'lucide-react';
+import { Award, CheckCircle2, X, ArrowRight, Target, PhoneCall } from 'lucide-react';
 
 interface CelebrationModalProps {
   isOpen: boolean;
@@ -39,8 +39,8 @@ export default function CelebrationModal({
     };
     window.addEventListener('resize', handleResize);
 
-    // Particle Confetti & Fireworks simulation
-    const colors = ['#ff6a00', '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#e11d48'];
+    // Subtle, elegant gold & navy champagne particle shimmer
+    const colors = ['#f59e0b', '#fbbf24', '#ff6a00', '#10b981', '#6366f1', '#3b82f6'];
     const particles: Array<{
       x: number;
       y: number;
@@ -48,22 +48,24 @@ export default function CelebrationModal({
       vy: number;
       size: number;
       color: string;
+      alpha: number;
+      decay: number;
       rotation: number;
       rotSpeed: number;
-      shape: 'rect' | 'circle';
     }> = [];
 
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 90; i++) {
       particles.push({
-        x: width / 2 + (Math.random() - 0.5) * 200,
-        y: height / 2 + (Math.random() - 0.5) * 100,
-        vx: (Math.random() - 0.5) * 18,
-        vy: (Math.random() - 0.8) * 16 - 3,
-        size: Math.random() * 8 + 4,
+        x: width / 2 + (Math.random() - 0.5) * 260,
+        y: height / 2 - 80 + (Math.random() - 0.5) * 120,
+        vx: (Math.random() - 0.5) * 12,
+        vy: (Math.random() - 0.7) * 14 - 2,
+        size: Math.random() * 6 + 3,
         color: colors[Math.floor(Math.random() * colors.length)],
+        alpha: 1,
+        decay: Math.random() * 0.006 + 0.002,
         rotation: Math.random() * 360,
-        rotSpeed: (Math.random() - 0.5) * 10,
-        shape: Math.random() > 0.4 ? 'rect' : 'circle',
+        rotSpeed: (Math.random() - 0.5) * 6,
       });
     }
 
@@ -73,22 +75,18 @@ export default function CelebrationModal({
       particles.forEach((p) => {
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.25; // gravity
-        p.vx *= 0.985; // friction
+        p.vy += 0.2; // gentle gravity
+        p.vx *= 0.985;
         p.rotation += p.rotSpeed;
+        p.alpha = Math.max(0, p.alpha - p.decay);
 
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.globalAlpha = p.alpha;
         ctx.fillStyle = p.color;
 
-        if (p.shape === 'rect') {
-          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 1.5);
-        } else {
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 1.4);
 
         ctx.restore();
       });
@@ -107,85 +105,73 @@ export default function CelebrationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-hidden">
-      {/* Confetti / Firecracker Canvas */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
+      {/* Background Canvas Effect */}
       <canvas
         ref={canvasRef}
         className="pointer-events-none absolute inset-0 z-10 h-full w-full"
       />
 
-      {/* Floating Animated Balloons */}
-      <div className="pointer-events-none absolute inset-0 z-15 overflow-hidden">
-        <div className="absolute -bottom-20 left-[10%] animate-bounce text-6xl opacity-90 transition duration-1000">🎈</div>
-        <div className="absolute -bottom-20 left-[25%] animate-pulse text-7xl opacity-90">🎉</div>
-        <div className="absolute -bottom-20 left-[45%] text-7xl opacity-90">🎈</div>
-        <div className="absolute -bottom-20 left-[68%] animate-bounce text-6xl opacity-90">✨</div>
-        <div className="absolute -bottom-20 left-[85%] text-7xl opacity-90">🎈</div>
-      </div>
-
-      {/* Main Celebration Card */}
-      <div className="relative z-20 w-full max-w-md transform overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl border-2 border-brand-orange/40 animate-in fade-in zoom-in-95 duration-300">
+      {/* Main Professional Milestone Dialog */}
+      <div className="relative z-20 w-full max-w-md overflow-hidden rounded-2xl bg-white p-7 text-center shadow-2xl border border-slate-200/80 animate-in zoom-in-95 duration-200">
+        {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-          title="Close"
+          className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+          aria-label="Close"
         >
           <X size={18} />
         </button>
 
-        {/* Glow & Trophy Icon */}
-        <div className="relative mx-auto flex h-24 w-24 items-center justify-center">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-400 to-amber-300 opacity-30 blur-xl animate-pulse"></div>
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 via-brand-orange to-red-500 shadow-lg text-white transform hover:rotate-6 transition duration-300">
-            <Trophy size={40} className="drop-shadow" />
-          </div>
+        {/* Milestone Icon Medallion */}
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500 via-brand-orange to-orange-500 text-white shadow-lg shadow-orange-500/25 ring-4 ring-orange-100">
+          <Award size={34} strokeWidth={2.2} />
         </div>
 
-        {/* Firecracker Badges */}
-        <div className="mt-4 flex items-center justify-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-brand-orange">
-            <Flame size={14} className="animate-bounce" /> 100% Target Crushed!
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
-            <Sparkles size={14} /> Star Telecaller
-          </span>
+        {/* Status Pill */}
+        <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
+          <CheckCircle2 size={13} className="text-emerald-600" />
+          <span>Daily Target Completed</span>
         </div>
 
-        {/* Heading */}
-        <h2 className="mt-3 text-3xl font-black text-brand-navy tracking-tight">
-          🎉 WELL DONE, {telecallerName}! 🚀
-        </h2>
+        {/* Title */}
+        <h3 className="mt-3 text-2xl font-black text-brand-navy tracking-tight">
+          Great Job, {telecallerName}!
+        </h3>
 
-        <p className="mt-2 text-sm font-medium text-slate-600 leading-relaxed">
-          Superb dedication! Aapne aaj ka apna <strong className="text-brand-orange font-bold">Daily Call Target</strong> pura kar liya hai.
+        <p className="mt-1.5 text-xs text-slate-600 leading-relaxed max-w-xs mx-auto">
+          Aapne aaj ka assigned target successfully pura kar liya hai. Aise hi high performance maintain rakhein!
         </p>
 
-        {/* Target Score Box */}
-        <div className="mt-5 rounded-2xl bg-gradient-to-r from-orange-50 to-amber-50 p-4 border border-orange-200">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-            <span>Calls Dialed Today:</span>
-            <span className="text-emerald-700 font-extrabold flex items-center gap-1">
-              <CheckCircle size={14} /> Completed
-            </span>
+        {/* Metric Overview Grid */}
+        <div className="mt-5 grid grid-cols-2 gap-2.5 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 text-left">
+          <div className="rounded-lg bg-white p-3 border border-slate-200/60 shadow-2xs">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+              <PhoneCall size={12} className="text-brand-orange" />
+              <span>Calls Dialed</span>
+            </div>
+            <p className="mt-1 text-xl font-black text-brand-navy">{callsDialed} Calls</p>
           </div>
-          <div className="mt-2 flex items-baseline justify-center gap-1 text-4xl font-black text-brand-orange">
-            {callsDialed}
-            <span className="text-lg font-bold text-slate-400">/ {dailyTarget} Calls</span>
+
+          <div className="rounded-lg bg-white p-3 border border-slate-200/60 shadow-2xs">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+              <Target size={12} className="text-emerald-600" />
+              <span>Target Met</span>
+            </div>
+            <p className="mt-1 text-xl font-black text-emerald-700">{dailyTarget} / {dailyTarget} (100%)</p>
           </div>
-          <p className="mt-1 text-[11px] font-semibold text-slate-500">
-            Keep dialing to set new records for Vyapar Wallah!
-          </p>
         </div>
 
         {/* Action Button */}
-        <div className="mt-6 flex flex-col gap-2">
+        <div className="mt-6">
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-xl bg-gradient-to-r from-brand-orange to-amber-500 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/30 hover:from-brand-orangeHover hover:to-amber-600 transition transform active:scale-98 flex items-center justify-center gap-2"
+            className="w-full rounded-xl bg-brand-navy hover:bg-brand-navy/90 py-3 text-xs font-bold text-white shadow-md transition flex items-center justify-center gap-2"
           >
-            <Flame size={16} /> Keep Dialing & Crushing It! 💪
+            <span>Continue to CRM Workspace</span>
+            <ArrowRight size={14} />
           </button>
         </div>
       </div>

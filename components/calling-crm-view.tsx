@@ -21,6 +21,7 @@ import {
   Users,
   UserCheck,
   BarChart3,
+  Award,
 } from 'lucide-react';
 import { AppUser, CallDisposition, CallingLead, ClientType } from '@/lib/types';
 import LeadImportModal from './lead-import-modal';
@@ -75,7 +76,22 @@ export default function CallingCRMView({
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [hasCelebrated, setHasCelebrated] = useState(false);
+
+  // Daily celebration key for localStorage (e.g. target_celebrated_EMP-1004_2026-09-07)
+  const todayDateStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const celebrationKey = useMemo(() => {
+    const id = currentEmployeeId || currentUserName || 'telecaller';
+    return `target_celebration_seen_${id}_${todayDateStr}`;
+  }, [currentEmployeeId, currentUserName, todayDateStr]);
+
+  const [hasCelebrated, setHasCelebrated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const id = currentEmployeeId || currentUserName || 'telecaller';
+      const key = `target_celebration_seen_${id}_${new Date().toISOString().slice(0, 10)}`;
+      return localStorage.getItem(key) === 'true';
+    }
+    return false;
+  });
 
   // Current logged in Telecaller user
   const currentTelecaller = useMemo(() => {
@@ -195,15 +211,21 @@ export default function CallingCRMView({
     };
   }, [accessibleLeads, isAdmin, users, currentTelecaller]);
 
-  // Trigger celebration popup and confetti when daily call target is completed
+  // Trigger celebration popup and confetti ONLY once when daily call target is newly reached
   useEffect(() => {
     if (!isAdmin && scorecard.dailyTarget > 0 && scorecard.dialedCount >= scorecard.dailyTarget) {
       if (!hasCelebrated) {
-        setShowCelebration(true);
-        setHasCelebrated(true);
+        if (typeof window !== 'undefined') {
+          const alreadySeen = localStorage.getItem(celebrationKey) === 'true';
+          if (!alreadySeen) {
+            setShowCelebration(true);
+            setHasCelebrated(true);
+            localStorage.setItem(celebrationKey, 'true');
+          }
+        }
       }
     }
-  }, [isAdmin, scorecard.dialedCount, scorecard.dailyTarget, hasCelebrated]);
+  }, [isAdmin, scorecard.dialedCount, scorecard.dailyTarget, hasCelebrated, celebrationKey]);
 
   const filteredLeads = useMemo(() => {
     return visibleQueueLeads.filter((l) => {
@@ -283,6 +305,35 @@ export default function CallingCRMView({
           )}
         </div>
       </div>
+
+      {/* Target Met Banner for Telecaller */}
+      {!isAdmin && scorecard.dailyTarget > 0 && scorecard.dialedCount >= scorecard.dailyTarget && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+              <Award size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-black text-emerald-950">Daily Outreach Target Achieved!</p>
+                <span className="rounded-md bg-emerald-200 px-2 py-0.5 text-[10px] font-extrabold text-emerald-900">
+                  {scorecard.dialedCount} / {scorecard.dailyTarget} Calls (100%)
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-700">
+                Aapka aaj ka target pura ho gaya hai. Aap priority callbacks aur remaining queue ko bina kisi rukawat ke follow-up kar sakte hain.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCelebration(true)}
+            className="rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-2xs transition"
+          >
+            View Milestone
+          </button>
+        </div>
+      )}
 
       {/* Scorecard Bar */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
