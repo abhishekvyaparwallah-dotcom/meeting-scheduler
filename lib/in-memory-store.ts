@@ -50,8 +50,8 @@ const globalStore: MemoryStore = globalThis.memoryStoreCache || {
     {
       id: 'EMP-1001',
       employeeId: 'EMP-1001',
-      name: 'Vyapar Admin',
-      email: 'admin@vyaparwallah.com',
+      name: 'Avinash Jha',
+      email: 'avinashjhacode@gmail.com',
       passwordHash: '',
       role: 'ADMIN',
       phone: '+91 98000 10001',

@@ -41,7 +41,7 @@ export async function sendAdminMeetingNotification({
   bookedByName,
   bookedByRole,
 }: MeetingEmailPayload): Promise<{ success: boolean; message: string }> {
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'admin@vyaparwallah.com';
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'avinashjhacode@gmail.com';
   const fromEmail = process.env.EMAIL_FROM || '"Vyapar Wallah Alert" <no-reply@vyaparwallah.com>';
   const timeFormatted = formatTime12h(meeting.time);
 

@@ -196,7 +196,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
 
-    if (target.role === 'ADMIN' && target.email === 'admin@vyaparwallah.com') {
+    if (target.role === 'ADMIN' && (target.email === 'avinashjhacode@gmail.com' || target.email === 'admin@vyaparwallah.com')) {
       return NextResponse.json({ message: 'Cannot delete primary Admin account' }, { status: 400 });
     }
 

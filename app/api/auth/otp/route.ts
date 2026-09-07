@@ -9,9 +9,9 @@ import { memoryStore } from '@/lib/in-memory-store';
 
 const STATIC_ADMIN = {
   employeeId: 'EMP-1001',
-  name: 'Vyapar Admin',
-  email: 'admin@vyaparwallah.com',
-  password: 'Admin@12345',
+  name: 'Avinash Jha',
+  email: 'avinashjhacode@gmail.com',
+  password: 'Admin@111',
   role: 'ADMIN',
 };
 

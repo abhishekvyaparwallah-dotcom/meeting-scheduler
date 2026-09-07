@@ -21,6 +21,8 @@ import {
   BookOpen,
   KeyRound,
   Target,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { generateWhatsAppLink, getMeetingWhatsAppMessage } from '@/utils/fast2sms';
 import Sidebar from '@/components/sidebar';
@@ -93,6 +95,8 @@ export default function DashboardApp({ session, activeRoute }: Props) {
   const [editingScriptText, setEditingScriptText] = useState('');
   const [editingPasswordUserId, setEditingPasswordUserId] = useState<string | null>(null);
   const [newPasswordText, setNewPasswordText] = useState('');
+  const [showNewUserPassword, setShowNewUserPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [editingTargetUserId, setEditingTargetUserId] = useState<string | null>(null);
   const [editingTargetNumber, setEditingTargetNumber] = useState<number>(3);
 
@@ -612,13 +616,23 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                       placeholder="Phone (+91...)"
                       className="rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-brand-orange"
                     />
-                    <input
-                      type="password"
-                      value={newUserForm.password}
-                      onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                      placeholder="Password"
-                      className="rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-brand-orange"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showNewUserPassword ? 'text' : 'password'}
+                        value={newUserForm.password}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                        placeholder="Password"
+                        className="w-full rounded-xl border border-slate-300 py-2 pl-3 pr-8 text-xs outline-none focus:border-brand-orange"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewUserPassword(!showNewUserPassword)}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-700 transition"
+                        title={showNewUserPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showNewUserPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
                     <select
                       value={newUserForm.role}
                       onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value as UserRole })}
@@ -739,7 +753,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                               Password
                             </button>
 
-                            {u.email !== 'admin@vyaparwallah.com' && (
+                            {u.email !== 'avinashjhacode@gmail.com' && u.email !== 'admin@vyaparwallah.com' && (
                               <button
                                 type="button"
                                 onClick={async () => {
@@ -795,13 +809,23 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                           <div className="mt-2 space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
                             <span className="text-[11px] font-bold text-blue-950">Set New Password for {u.name}:</span>
                             <div className="flex gap-2">
-                              <input
-                                type="password"
-                                value={newPasswordText}
-                                onChange={(e) => setNewPasswordText(e.target.value)}
-                                placeholder="Enter new password (min 4 characters)..."
-                                className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-brand-orange"
-                              />
+                              <div className="relative flex-1">
+                                <input
+                                  type={showResetPassword ? 'text' : 'password'}
+                                  value={newPasswordText}
+                                  onChange={(e) => setNewPasswordText(e.target.value)}
+                                  placeholder="Enter new password (min 4 characters)..."
+                                  className="w-full rounded-lg border border-blue-300 bg-white py-1.5 pl-3 pr-8 text-xs text-slate-800 outline-none focus:border-brand-orange"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowResetPassword(!showResetPassword)}
+                                  className="absolute right-2.5 top-1.5 text-slate-400 hover:text-slate-700 transition"
+                                  title={showResetPassword ? 'Hide password' : 'Show password'}
+                                >
+                                  {showResetPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => handleSaveUserPassword(u.id, newPasswordText)}

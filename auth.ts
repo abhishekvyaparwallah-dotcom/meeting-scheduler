@@ -18,9 +18,9 @@ const STATIC_FALLBACK_USERS: Array<{
 }> = [
   {
     employeeId: 'EMP-1001',
-    name: 'Vyapar Admin',
-    email: 'admin@vyaparwallah.com',
-    password: 'Admin@12345',
+    name: 'Avinash Jha',
+    email: 'avinashjhacode@gmail.com',
+    password: 'Admin@111',
     role: 'ADMIN',
   },
 ];

@@ -5,9 +5,9 @@ export const seedUsers: AppUser[] = [
   {
     id: 'user-admin',
     employeeId: 'EMP-1001',
-    name: 'Vyapar Admin',
-    email: 'admin@vyaparwallah.com',
-    passwordHash: bcrypt.hashSync('Admin@12345', 10),
+    name: 'Avinash Jha',
+    email: 'avinashjhacode@gmail.com',
+    passwordHash: bcrypt.hashSync('Admin@111', 10),
     role: 'ADMIN',
     phone: '+91 98000 10001',
     active: true,
