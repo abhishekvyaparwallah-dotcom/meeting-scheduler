@@ -57,26 +57,6 @@ const globalStore: MemoryStore = globalThis.memoryStoreCache || {
       phone: '+91 98000 10001',
       active: true,
     },
-    {
-      id: 'EMP-1002',
-      employeeId: 'EMP-1002',
-      name: 'Rohit Sharma (Telecaller)',
-      email: 'rohit@vyaparwallah.com',
-      passwordHash: '',
-      role: 'TELECALLER',
-      phone: '+91 98000 10002',
-      active: true,
-    },
-    {
-      id: 'EMP-1003',
-      employeeId: 'EMP-1003',
-      name: 'Neha Gupta (Telecaller)',
-      email: 'neha@vyaparwallah.com',
-      passwordHash: '',
-      role: 'TELECALLER',
-      phone: '+91 98000 10003',
-      active: true,
-    },
   ],
 };
 

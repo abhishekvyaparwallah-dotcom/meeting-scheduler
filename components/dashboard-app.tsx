@@ -639,33 +639,34 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                               </button>
                             )}
 
-                            {u.role === 'TELECALLER' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (editingPasswordUserId === u.id) {
-                                    setEditingPasswordUserId(null);
-                                    setNewPasswordText('');
-                                  } else {
-                                    setEditingPasswordUserId(u.id);
-                                    setNewPasswordText('');
-                                    setEditingScriptUserId(null);
-                                  }
-                                }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 shadow-xs"
-                                title="Change Password"
-                              >
-                                <KeyRound size={12} className="text-blue-600" />
-                                Password
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (editingPasswordUserId === u.id) {
+                                  setEditingPasswordUserId(null);
+                                  setNewPasswordText('');
+                                } else {
+                                  setEditingPasswordUserId(u.id);
+                                  setNewPasswordText('');
+                                  setEditingScriptUserId(null);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 shadow-xs"
+                              title="Change Password"
+                            >
+                              <KeyRound size={12} className="text-blue-600" />
+                              Password
+                            </button>
 
-                            {u.role === 'TELECALLER' && (
+                            {u.email !== 'admin@vyaparwallah.com' && (
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  await fetch(`/api/admin/users?id=${u.id}`, { method: 'DELETE' });
-                                  setUsers((c) => c.filter((item) => item.id !== u.id));
+                                  if (confirm(`Are you sure you want to delete ${u.name} (${u.employeeId})?`)) {
+                                    await fetch(`/api/admin/users?id=${u.id}`, { method: 'DELETE' });
+                                    setUsers((c) => c.filter((item) => item.id !== u.id));
+                                    setBannerMessage({ text: `Deleted user ${u.name}`, type: 'success' });
+                                  }
                                 }}
                                 className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-600 hover:bg-rose-50"
                                 title="Delete User"

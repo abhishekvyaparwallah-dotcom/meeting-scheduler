@@ -22,20 +22,6 @@ const STATIC_FALLBACK_USERS: Array<{
     password: 'Admin@12345',
     role: 'ADMIN',
   },
-  {
-    employeeId: 'EMP-1002',
-    name: 'Rohit Sharma (Telecaller)',
-    email: 'rohit@vyaparwallah.com',
-    password: 'Employee@123',
-    role: 'TELECALLER',
-  },
-  {
-    employeeId: 'EMP-1003',
-    name: 'Neha Gupta (Telecaller)',
-    email: 'neha@vyaparwallah.com',
-    password: 'Employee@123',
-    role: 'TELECALLER',
-  },
 ];
 
 export const { handlers, auth, signIn, signOut } = NextAuth({

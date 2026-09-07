@@ -25,7 +25,7 @@ async function seedDefaultUsers() {
   try {
     const userCount = await User.countDocuments();
     if (userCount === 0) {
-      console.log('[MONGODB] Initializing default staff and admin accounts...');
+      console.log('[MONGODB] Initializing default Admin account...');
       await User.create([
         {
           employeeId: 'EMP-1001',
@@ -36,26 +36,8 @@ async function seedDefaultUsers() {
           phone: '+91 98000 10001',
           active: true,
         },
-        {
-          employeeId: 'EMP-1002',
-          name: 'Rohit Sharma (Telecaller)',
-          email: 'rohit@vyaparwallah.com',
-          passwordHash: bcrypt.hashSync('Employee@123', 10),
-          role: 'TELECALLER',
-          phone: '+91 98000 10002',
-          active: true,
-        },
-        {
-          employeeId: 'EMP-1003',
-          name: 'Neha Gupta (Telecaller)',
-          email: 'neha@vyaparwallah.com',
-          passwordHash: bcrypt.hashSync('Employee@123', 10),
-          role: 'TELECALLER',
-          phone: '+91 98000 10003',
-          active: true,
-        },
       ]);
-      console.log('[MONGODB] ✓ Default Admin and Telecallers seeded successfully.');
+      console.log('[MONGODB] ✓ Default Admin seeded successfully.');
     }
   } catch (err) {
     console.error('[MONGODB SEED ERROR]', err);
