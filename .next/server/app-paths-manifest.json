@@ -1,0 +1,17 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/admin/audit-logs/route": "app/api/admin/audit-logs/route.js",
+  "/api/admin/users/route": "app/api/admin/users/route.js",
+  "/api/cron/reminders/route": "app/api/cron/reminders/route.js",
+  "/api/leads/[id]/route": "app/api/leads/[id]/route.js",
+  "/api/clients/route": "app/api/clients/route.js",
+  "/api/leads/route": "app/api/leads/route.js",
+  "/api/meetings/[id]/route": "app/api/meetings/[id]/route.js",
+  "/api/meetings/route": "app/api/meetings/route.js",
+  "/crm/page": "app/crm/page.js",
+  "/login/page": "app/login/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/page": "app/page.js",
+  "/analytics/page": "app/analytics/page.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js"
+}
