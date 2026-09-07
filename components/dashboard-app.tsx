@@ -288,7 +288,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
     const json = await response.json();
     if (response.ok) {
       setUsers((current) => [json.user, ...current]);
-      setNewUserForm({ name: '', email: '', password: '', role: 'TELECALLER', employeeId: '', phone: '', customScript: '' });
+      setNewUserForm({ name: '', email: '', password: '', role: 'TELECALLER', employeeId: '', phone: '', customScript: '', dailyTarget: 50 });
       setBannerMessage({ text: 'Staff account created successfully.', type: 'success' });
     } else {
       setBannerMessage({ text: json.message ?? 'Failed to create user.', type: 'error' });
@@ -885,13 +885,13 @@ export default function DashboardApp({ session, activeRoute }: Props) {
       />
 
       <BookingModal
-        isOpen={Boolean(bookingDate || editingMeeting)}
+        open={Boolean(bookingDate || editingMeeting)}
         date={bookingDate}
-        meeting={editingMeeting}
+        meetings={visibleMeetings}
+        editingMeeting={editingMeeting}
         prefilledLead={prefilledLead}
-        isAdmin={isAdmin}
-        users={users}
-        currentUserName={session.user.name ?? 'Vyapar Wallah'}
+        employees={users}
+        role={session.user.role}
         currentEmployeeId={session.user.employeeId}
         onClose={() => {
           setBookingDate(null);
@@ -901,21 +901,19 @@ export default function DashboardApp({ session, activeRoute }: Props) {
         onSave={handleSaveMeeting}
       />
 
-      {conversionMeeting && (
-        <ClientConversionModal
-          meeting={conversionMeeting}
-          onClose={() => setConversionMeeting(null)}
-          onConvert={handleConvertClient}
-        />
-      )}
+      <ClientConversionModal
+        open={Boolean(conversionMeeting)}
+        meeting={conversionMeeting}
+        onClose={() => setConversionMeeting(null)}
+        onConvert={handleConvertMeeting}
+      />
 
       {isAdmin && (
         <MonthlyReportModal
           isOpen={showMonthlyReportModal}
           onClose={() => setShowMonthlyReportModal(false)}
-          meetings={meetings}
+          meetings={visibleMeetings}
           users={users}
-          isAdmin={isAdmin}
         />
       )}
 
