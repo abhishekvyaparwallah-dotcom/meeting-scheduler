@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   PhoneCall,
   CalendarPlus,
@@ -44,7 +44,7 @@ const DISPOSITION_CONFIG: Record<CallDisposition, { label: string; bg: string; t
   CONNECTED: { label: 'Connected', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
   CALLBACK: { label: 'Callback Due', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   MEETING_BOOKED: { label: 'Meeting Fixed', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  BUSY: { label: 'Busy / Cut', bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+  BUSY: { label: 'Callback / Busy', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   CALL_CUT: { label: 'Ringing / Cut', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
   NOT_INTERESTED: { label: 'Not Interested', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300' },
 };
@@ -94,10 +94,11 @@ export default function CallingCRMView({
       const connected = userLeads.filter((l) => l.status === 'CONNECTED').length;
       const callbacks = userLeads.filter((l) => l.status === 'CALLBACK').length;
       const booked = userLeads.filter((l) => l.status === 'MEETING_BOOKED').length;
-      const busy = userLeads.filter((l) => l.status === 'BUSY' || l.status === 'CALL_CUT').length;
+      const callCut = userLeads.filter((l) => l.status === 'CALL_CUT' || l.status === 'BUSY').length;
       const notInterested = userLeads.filter((l) => l.status === 'NOT_INTERESTED').length;
       const pendingNew = userLeads.filter((l) => l.status === 'NEW').length;
-      const dialed = connected + callbacks + booked + busy + notInterested;
+      // Daily completed target counts only finalized calls (excluding pending callbacks)
+      const dialed = connected + booked + notInterested + callCut;
       const target = t.dailyTarget ?? 50;
       const progress = Math.min(100, Math.round((dialed / (target || 1)) * 100));
 
@@ -109,7 +110,7 @@ export default function CallingCRMView({
         connected,
         callbacks,
         booked,
-        busy,
+        busy: callCut,
         notInterested,
         progress,
         target,
@@ -162,9 +163,10 @@ export default function CallingCRMView({
     const connectedCount = accessibleLeads.filter((l) => l.status === 'CONNECTED').length;
     const callbacksCount = accessibleLeads.filter((l) => l.status === 'CALLBACK').length;
     const bookedCount = accessibleLeads.filter((l) => l.status === 'MEETING_BOOKED').length;
-    const busyCount = accessibleLeads.filter((l) => l.status === 'BUSY' || l.status === 'CALL_CUT').length;
+    const callCutCount = accessibleLeads.filter((l) => l.status === 'CALL_CUT' || l.status === 'BUSY').length;
     const notInterestedCount = accessibleLeads.filter((l) => l.status === 'NOT_INTERESTED').length;
-    const dialedCount = connectedCount + callbacksCount + bookedCount + busyCount + notInterestedCount;
+    // Completed dials (callbacks are excluded from completed daily target count)
+    const dialedCount = connectedCount + bookedCount + notInterestedCount + callCutCount;
     const telecallers = users.filter((u) => u.role === 'TELECALLER');
     const dailyTarget = isAdmin
       ? telecallers.reduce((sum, u) => sum + (u.dailyTarget ?? 50), 0) || 50
@@ -177,7 +179,7 @@ export default function CallingCRMView({
       connectedCount,
       callbacksCount,
       bookedCount,
-      busyCount,
+      busyCount: callCutCount,
       notInterestedCount,
       dailyTarget,
       targetProgress,
@@ -582,10 +584,17 @@ export default function CallingCRMView({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleQuickDisposition(lead.id, 'BUSY')}
-                    className="rounded-md bg-orange-50 hover:bg-orange-100 border border-orange-200 px-2 py-0.5 font-bold text-orange-800 transition"
+                    onClick={() => handleQuickDisposition(lead.id, 'CALLBACK')}
+                    className="rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 font-bold text-amber-800 transition"
                   >
-                    Busy
+                    Callback
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDisposition(lead.id, 'NOT_INTERESTED')}
+                    className="rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-0.5 font-bold text-slate-700 transition"
+                  >
+                    Not Interested
                   </button>
                   <button
                     type="button"
@@ -687,8 +696,7 @@ export default function CallingCRMView({
                   <option value="NEW">New / Pending</option>
                   <option value="CONNECTED">🟢 Connected & Interested</option>
                   <option value="MEETING_BOOKED">🟣 Meeting Booked</option>
-                  <option value="CALLBACK">🟡 Callback Requested</option>
-                  <option value="BUSY">🟠 Busy / Disconnected</option>
+                  <option value="CALLBACK">🟡 Callback Requested / Busy</option>
                   <option value="CALL_CUT">🔴 Ringing / No Answer</option>
                   <option value="NOT_INTERESTED">⚫ Not Interested</option>
                 </select>
