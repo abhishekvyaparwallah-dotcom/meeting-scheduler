@@ -22,6 +22,7 @@ export type AppUser = {
   role: UserRole;
   phone?: string;
   customScript?: string;
+  dailyTarget?: number;
   active: boolean;
 };
 

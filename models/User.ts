@@ -9,6 +9,7 @@ export interface IUser extends Document {
   role: UserRole;
   phone?: string;
   customScript?: string;
+  dailyTarget?: number;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +24,7 @@ const UserSchema = new Schema<IUser>(
     role: { type: String, enum: ['ADMIN', 'TELECALLER'], default: 'TELECALLER' },
     phone: { type: String, default: '' },
     customScript: { type: String, default: '' },
+    dailyTarget: { type: Number, default: 3 },
     active: { type: Boolean, default: true },
   },
   { timestamps: true }

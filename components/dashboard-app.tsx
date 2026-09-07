@@ -20,6 +20,7 @@ import {
   Sparkles,
   BookOpen,
   KeyRound,
+  Target,
 } from 'lucide-react';
 import { generateWhatsAppLink, getMeetingWhatsAppMessage } from '@/utils/fast2sms';
 import Sidebar from '@/components/sidebar';
@@ -82,12 +83,15 @@ export default function DashboardApp({ session, activeRoute }: Props) {
     employeeId: '',
     phone: '',
     customScript: '',
+    dailyTarget: 50,
   });
 
   const [editingScriptUserId, setEditingScriptUserId] = useState<string | null>(null);
   const [editingScriptText, setEditingScriptText] = useState('');
   const [editingPasswordUserId, setEditingPasswordUserId] = useState<string | null>(null);
   const [newPasswordText, setNewPasswordText] = useState('');
+  const [editingTargetUserId, setEditingTargetUserId] = useState<string | null>(null);
+  const [editingTargetNumber, setEditingTargetNumber] = useState<number>(50);
 
   const visibleMeetings = useMemo(
     () => (isAdmin ? meetings : meetings.filter((m) => m.assignedEmployeeId === session.user.employeeId)),
@@ -334,6 +338,31 @@ export default function DashboardApp({ session, activeRoute }: Props) {
       }
     } catch {
       setBannerMessage({ text: 'Error updating password.', type: 'error' });
+    }
+  };
+
+  const handleSaveUserTarget = async (userId: string, targetNum: number) => {
+    if (!targetNum || targetNum < 1) {
+      setBannerMessage({ text: 'Daily target must be at least 1 call.', type: 'error' });
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, dailyTarget: targetNum }),
+      });
+      if (res.ok) {
+        setUsers((curr) =>
+          curr.map((u) => (u.id === userId ? { ...u, dailyTarget: targetNum } : u))
+        );
+        setEditingTargetUserId(null);
+        setBannerMessage({ text: `Daily call target updated to ${targetNum} calls!`, type: 'success' });
+      } else {
+        setBannerMessage({ text: 'Failed to update daily call target.', type: 'error' });
+      }
+    } catch {
+      setBannerMessage({ text: 'Error updating target.', type: 'error' });
     }
   };
 
@@ -585,6 +614,16 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                       <option value="ADMIN">ADMIN</option>
                     </select>
 
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={newUserForm.dailyTarget}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, dailyTarget: Number(e.target.value) })}
+                      placeholder="Daily Call Target (e.g. 50 calls/day)"
+                      className="rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-brand-orange"
+                    />
+
                     <textarea
                       value={newUserForm.customScript}
                       onChange={(e) => setNewUserForm({ ...newUserForm, customScript: e.target.value })}
@@ -598,7 +637,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                       onClick={handleCreateUser}
                       className="sm:col-span-2 rounded-xl bg-brand-navy py-2 text-xs font-bold text-white hover:bg-slate-800 transition flex items-center justify-center gap-1.5"
                     >
-                      <UserPlus size={14} /> Add Telecaller Account
+                      <UserPlus size={14} /> Add Staff / Telecaller Account
                     </button>
                   </div>
 
@@ -610,8 +649,13 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-bold text-brand-navy">{u.name}</p>
-                              {u.customScript?.trim() ? (
+                              {u.role === 'TELECALLER' && (
                                 <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                                  <Target size={10} /> Target: {u.dailyTarget ?? 50} calls/day
+                                </span>
+                              )}
+                              {u.customScript?.trim() ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">
                                   <Sparkles size={10} /> Live Script Set
                                 </span>
                               ) : null}
@@ -621,22 +665,44 @@ export default function DashboardApp({ session, activeRoute }: Props) {
 
                           <div className="flex items-center gap-1.5">
                             {u.role === 'TELECALLER' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (editingScriptUserId === u.id) {
-                                    setEditingScriptUserId(null);
-                                  } else {
-                                    setEditingScriptUserId(u.id);
-                                    setEditingScriptText(u.customScript || '');
-                                    setEditingPasswordUserId(null);
-                                  }
-                                }}
-                                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 shadow-xs"
-                              >
-                                <Edit3 size={12} className="text-brand-orange" />
-                                {u.customScript?.trim() ? 'Edit Script' : '+ Script'}
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (editingTargetUserId === u.id) {
+                                      setEditingTargetUserId(null);
+                                    } else {
+                                      setEditingTargetUserId(u.id);
+                                      setEditingTargetNumber(u.dailyTarget ?? 50);
+                                      setEditingScriptUserId(null);
+                                      setEditingPasswordUserId(null);
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-bold text-amber-800 hover:bg-amber-50 shadow-xs"
+                                  title="Change Daily Call Target"
+                                >
+                                  <Target size={12} className="text-amber-700" />
+                                  Target: {u.dailyTarget ?? 50} calls
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (editingScriptUserId === u.id) {
+                                      setEditingScriptUserId(null);
+                                    } else {
+                                      setEditingScriptUserId(u.id);
+                                      setEditingScriptText(u.customScript || '');
+                                      setEditingPasswordUserId(null);
+                                      setEditingTargetUserId(null);
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 shadow-xs"
+                                >
+                                  <Edit3 size={12} className="text-brand-orange" />
+                                  {u.customScript?.trim() ? 'Edit Script' : '+ Script'}
+                                </button>
+                              </>
                             )}
 
                             <button
@@ -649,6 +715,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                                   setEditingPasswordUserId(u.id);
                                   setNewPasswordText('');
                                   setEditingScriptUserId(null);
+                                  setEditingTargetUserId(null);
                                 }
                               }}
                               className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 shadow-xs"
@@ -676,6 +743,38 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                             )}
                           </div>
                         </div>
+
+                        {/* Inline Target Editor */}
+                        {editingTargetUserId === u.id && (
+                          <div className="mt-2 space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                            <span className="text-[11px] font-bold text-amber-950">Set Daily Call Target for {u.name}:</span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={1}
+                                max={500}
+                                value={editingTargetNumber}
+                                onChange={(e) => setEditingTargetNumber(Number(e.target.value))}
+                                className="w-24 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-brand-orange"
+                              />
+                              <span className="text-xs text-slate-500 font-medium">calls/day</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveUserTarget(u.id, editingTargetNumber)}
+                                className="rounded-lg bg-amber-600 hover:bg-amber-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs"
+                              >
+                                Save Target
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingTargetUserId(null)}
+                                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Inline Password Reset Box */}
                         {editingPasswordUserId === u.id && (
@@ -761,12 +860,14 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                             {log.createdAt}
                           </span>
                         </div>
-                        <p className="text-slate-500 mt-0.5">By: {log.employeeName}</p>
-                        <p className="text-slate-800 font-medium mt-1">{log.details}</p>
+                        <p className="text-slate-700 mt-1">{log.details}</p>
+                        <p className="text-slate-400 font-mono text-[10px] mt-1">
+                          By: {log.employeeName} ({log.employeeId})
+                        </p>
                       </div>
                     ))}
                     {auditLogs.length === 0 && (
-                      <p className="text-center text-slate-400 py-6">No audit logs recorded yet.</p>
+                      <p className="p-4 text-center text-slate-400">No activity logged yet.</p>
                     )}
                   </div>
                 </div>
@@ -784,13 +885,13 @@ export default function DashboardApp({ session, activeRoute }: Props) {
       />
 
       <BookingModal
-        open={Boolean(bookingDate) && (!isAdmin || Boolean(editingMeeting))}
+        isOpen={Boolean(bookingDate || editingMeeting)}
         date={bookingDate}
-        meetings={visibleMeetings}
-        editingMeeting={editingMeeting}
+        meeting={editingMeeting}
         prefilledLead={prefilledLead}
-        employees={users}
-        role={session.user.role}
+        isAdmin={isAdmin}
+        users={users}
+        currentUserName={session.user.name ?? 'Vyapar Wallah'}
         currentEmployeeId={session.user.employeeId}
         onClose={() => {
           setBookingDate(null);
@@ -800,19 +901,21 @@ export default function DashboardApp({ session, activeRoute }: Props) {
         onSave={handleSaveMeeting}
       />
 
-      <ClientConversionModal
-        open={Boolean(conversionMeeting)}
-        meeting={conversionMeeting}
-        onClose={() => setConversionMeeting(null)}
-        onConvert={handleConvertMeeting}
-      />
+      {conversionMeeting && (
+        <ClientConversionModal
+          meeting={conversionMeeting}
+          onClose={() => setConversionMeeting(null)}
+          onConvert={handleConvertClient}
+        />
+      )}
 
       {isAdmin && (
         <MonthlyReportModal
           isOpen={showMonthlyReportModal}
           onClose={() => setShowMonthlyReportModal(false)}
-          meetings={visibleMeetings}
+          meetings={meetings}
           users={users}
+          isAdmin={isAdmin}
         />
       )}
 
@@ -875,15 +978,17 @@ export default function DashboardApp({ session, activeRoute }: Props) {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
-              <a
-                href={generateWhatsAppLink(selectedMeeting.phone, getMeetingWhatsAppMessage(selectedMeeting, session.user.name ?? 'Vyapar Wallah'))}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition"
-              >
-                <MessageCircle size={14} />
-                Send WhatsApp Confirmation
-              </a>
+              {isAdmin && (
+                <a
+                  href={generateWhatsAppLink(selectedMeeting.phone, getMeetingWhatsAppMessage(selectedMeeting, session.user.name ?? 'Vyapar Wallah'))}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition"
+                >
+                  <MessageCircle size={14} />
+                  Send WhatsApp Confirmation
+                </a>
+              )}
 
               <div className="flex items-center gap-2">
                 <button
@@ -897,7 +1002,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                 >
                   Edit Meeting
                 </button>
-                {!selectedMeeting.convertedToClient && (
+                {isAdmin && !selectedMeeting.convertedToClient && (
                   <button
                     type="button"
                     onClick={() => {

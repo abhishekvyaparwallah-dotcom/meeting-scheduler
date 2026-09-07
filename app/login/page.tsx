@@ -10,8 +10,8 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard';
 
-  const [email, setEmail] = useState('admin@vyaparwallah.com');
-  const [password, setPassword] = useState('Admin@12345');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,18 +34,6 @@ export default function LoginPage() {
     }
     router.push(callbackUrl);
     router.refresh();
-  };
-
-  const setAdminDemo = () => {
-    setEmail('admin@vyaparwallah.com');
-    setPassword('Admin@12345');
-    setError('');
-  };
-
-  const setTelecallerDemo = () => {
-    setEmail('rohit@vyaparwallah.com');
-    setPassword('Employee@123');
-    setError('');
   };
 
   return (
@@ -96,29 +84,10 @@ export default function LoginPage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-brand-orange">Sign In</p>
             <h3 className="text-2xl font-bold text-brand-navy mt-1">Account Access</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Select role or enter your credentials</p>
+            <p className="text-xs text-slate-500 mt-0.5">Enter your email and password to continue</p>
           </div>
 
-          <div className="mt-5 flex gap-2">
-            <button
-              type="button"
-              onClick={setAdminDemo}
-              className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-xs font-bold text-slate-700 hover:border-brand-orange hover:bg-white hover:text-brand-navy transition flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <Shield size={14} className="text-brand-orange" />
-              Admin
-            </button>
-            <button
-              type="button"
-              onClick={setTelecallerDemo}
-              className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-xs font-bold text-slate-700 hover:border-brand-orange hover:bg-white hover:text-brand-navy transition flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <PhoneCall size={14} className="text-emerald-600" />
-              Telecaller
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-600">Email Address</label>
               <div className="relative mt-1">

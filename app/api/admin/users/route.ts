@@ -28,6 +28,7 @@ export async function GET() {
       role: u.role,
       phone: u.phone,
       customScript: u.customScript || '',
+      dailyTarget: u.dailyTarget ?? 3,
       active: u.active,
     }));
 
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
       role: body.role ?? 'TELECALLER',
       phone: body.phone || '',
       customScript: body.customScript || '',
+      dailyTarget: Number(body.dailyTarget) || 3,
       active: true,
     });
 
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
       role: newUserDoc.role,
       phone: newUserDoc.phone,
       customScript: newUserDoc.customScript || '',
+      dailyTarget: newUserDoc.dailyTarget ?? 3,
       active: newUserDoc.active,
     };
 
@@ -111,6 +114,7 @@ export async function POST(request: Request) {
       role: body.role ?? 'TELECALLER',
       phone: body.phone || '',
       customScript: body.customScript || '',
+      dailyTarget: Number(body.dailyTarget) || 3,
       active: true,
     };
     memoryStore.users.push(mockUser);
@@ -136,6 +140,7 @@ export async function PUT(request: Request) {
     if (body.name) updateFields.name = body.name.trim();
     if (body.phone !== undefined) updateFields.phone = body.phone;
     if (body.customScript !== undefined) updateFields.customScript = body.customScript;
+    if (body.dailyTarget !== undefined) updateFields.dailyTarget = Number(body.dailyTarget);
     if (body.active !== undefined) updateFields.active = body.active;
     if (body.password) {
       updateFields.passwordHash = bcrypt.hashSync(body.password, 10);
@@ -163,6 +168,7 @@ export async function PUT(request: Request) {
     const memUser = memoryStore.users.find((u) => u.id === body.id);
     if (memUser) {
       if (body.customScript !== undefined) memUser.customScript = body.customScript;
+      if (body.dailyTarget !== undefined) memUser.dailyTarget = Number(body.dailyTarget);
       if (body.phone !== undefined) memUser.phone = body.phone;
       if (body.password) memUser.passwordHash = bcrypt.hashSync(body.password, 10);
     }

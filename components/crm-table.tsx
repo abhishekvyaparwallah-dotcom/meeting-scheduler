@@ -137,16 +137,18 @@ export default function CRMTable({
 
                 <td className="p-3.5 text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-1.5">
-                    <a
-                      href={generateWhatsAppLink(meeting.phone, getMeetingWhatsAppMessage(meeting))}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-2 py-1.5 text-xs font-bold text-white shadow-sm transition"
-                      title="Send WhatsApp Confirmation to Client"
-                    >
-                      <MessageCircle size={13} />
-                      WhatsApp
-                    </a>
+                    {isAdmin && (
+                      <a
+                        href={generateWhatsAppLink(meeting.phone, getMeetingWhatsAppMessage(meeting))}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-2 py-1.5 text-xs font-bold text-white shadow-sm transition"
+                        title="Send WhatsApp Confirmation to Client"
+                      >
+                        <MessageCircle size={13} />
+                        WhatsApp
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={() => onSelectMeeting(meeting)}

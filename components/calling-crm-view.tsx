@@ -25,6 +25,7 @@ import {
 import { AppUser, CallDisposition, CallingLead, ClientType } from '@/lib/types';
 import LeadImportModal from './lead-import-modal';
 import CallingScriptModal from './calling-script-modal';
+import CelebrationModal from './celebration-modal';
 import { generateWhatsAppLink, getLeadIntroWhatsAppMessage } from '@/utils/fast2sms';
 
 type Props = {
@@ -69,6 +70,8 @@ export default function CallingCRMView({
   });
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showScriptModal, setShowScriptModal] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [hasCelebrated, setHasCelebrated] = useState(false);
 
   // Current logged in Telecaller user
   const currentTelecaller = useMemo(() => {
@@ -95,8 +98,8 @@ export default function CallingCRMView({
       const notInterested = userLeads.filter((l) => l.status === 'NOT_INTERESTED').length;
       const pendingNew = userLeads.filter((l) => l.status === 'NEW').length;
       const dialed = connected + callbacks + booked + busy + notInterested;
-      const target = 3;
-      const progress = Math.min(100, Math.round((booked / target) * 100));
+      const target = t.dailyTarget ?? 50;
+      const progress = Math.min(100, Math.round((dialed / (target || 1)) * 100));
 
       return {
         user: t,
@@ -109,6 +112,7 @@ export default function CallingCRMView({
         busy,
         notInterested,
         progress,
+        target,
       };
     });
   }, [users, leads]);
@@ -135,11 +139,13 @@ export default function CallingCRMView({
     });
   }, [leads, isAdmin, selectedStaffFilter, users, currentTelecaller, currentUserName, currentEmployeeId]);
 
-  // Telecaller should NOT see fixed meetings in calling queue; Admin sees everything
+  // Telecaller active queue: ONLY shows NEW (uncalled) and CALLBACK (follow-ups).
+  // Once dialed and given other dispositions (CONNECTED, BUSY, CALL_CUT, NOT_INTERESTED, MEETING_BOOKED),
+  // they are removed from the Telecaller's active queue, but remain 100% saved in the Admin CRM database.
   const visibleQueueLeads = useMemo(() => {
     return accessibleLeads.filter((l) => {
-      if (!isAdmin && l.status === 'MEETING_BOOKED') {
-        return false;
+      if (!isAdmin) {
+        return l.status === 'NEW' || l.status === 'CALLBACK';
       }
       return true;
     });
@@ -159,8 +165,11 @@ export default function CallingCRMView({
     const busyCount = accessibleLeads.filter((l) => l.status === 'BUSY' || l.status === 'CALL_CUT').length;
     const notInterestedCount = accessibleLeads.filter((l) => l.status === 'NOT_INTERESTED').length;
     const dialedCount = connectedCount + callbacksCount + bookedCount + busyCount + notInterestedCount;
-    const dailyTarget = isAdmin ? Math.max(3, users.filter((u) => u.role === 'TELECALLER').length * 3) : 3;
-    const targetProgress = Math.min(100, Math.round((bookedCount / dailyTarget) * 100));
+    const telecallers = users.filter((u) => u.role === 'TELECALLER');
+    const dailyTarget = isAdmin
+      ? telecallers.reduce((sum, u) => sum + (u.dailyTarget ?? 50), 0) || 50
+      : (currentTelecaller?.dailyTarget ?? 50);
+    const targetProgress = Math.min(100, Math.round((dialedCount / (dailyTarget || 1)) * 100));
 
     return {
       totalAssigned,
@@ -173,7 +182,17 @@ export default function CallingCRMView({
       dailyTarget,
       targetProgress,
     };
-  }, [accessibleLeads, isAdmin, users]);
+  }, [accessibleLeads, isAdmin, users, currentTelecaller]);
+
+  // Trigger celebration popup and confetti when daily call target is completed
+  useEffect(() => {
+    if (!isAdmin && scorecard.dailyTarget > 0 && scorecard.dialedCount >= scorecard.dailyTarget) {
+      if (!hasCelebrated) {
+        setShowCelebration(true);
+        setHasCelebrated(true);
+      }
+    }
+  }, [isAdmin, scorecard.dialedCount, scorecard.dailyTarget, hasCelebrated]);
 
   const filteredLeads = useMemo(() => {
     return visibleQueueLeads.filter((l) => {
@@ -294,13 +313,13 @@ export default function CallingCRMView({
         <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase text-brand-orange">
-              {isAdmin ? 'Total Meetings Fixed' : 'Daily Target Status'}
+              {isAdmin ? 'Team Call Target' : 'Daily Call Target'}
             </span>
             <Target size={18} className="text-brand-orange" />
           </div>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-lg font-black text-slate-900">
-              {scorecard.bookedCount} / {scorecard.dailyTarget} Meets
+              {scorecard.dialedCount} / {scorecard.dailyTarget} Calls
             </span>
             <span className="text-xs font-bold text-brand-orange">{scorecard.targetProgress}%</span>
           </div>
@@ -371,7 +390,7 @@ export default function CallingCRMView({
                     <td className="py-3 px-3">
                       <div className="w-24">
                         <div className="flex items-center justify-between text-[10px] font-bold">
-                          <span>{item.booked}/3</span>
+                          <span>{item.dialed}/{item.target}</span>
                           <span className="text-brand-orange">{item.progress}%</span>
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden mt-0.5">
@@ -460,14 +479,22 @@ export default function CallingCRMView({
           )}
 
           <div className="flex flex-wrap gap-1.5">
-            {[
-              { id: 'ALL', label: `All Active (${visibleQueueLeads.length})` },
-              { id: 'NEW', label: 'New Leads' },
-              { id: 'CALLBACK', label: `Callbacks (${callbackLeads.length})` },
-              { id: 'CONNECTED', label: 'Connected' },
-              ...(isAdmin ? [{ id: 'MEETING_BOOKED', label: 'Meetings Fixed (Admin)' }] : []),
-              { id: 'BUSY', label: 'Busy / Ringing' },
-            ].map((tab) => (
+            {(isAdmin
+              ? [
+                  { id: 'ALL', label: `All Leads (${visibleQueueLeads.length})` },
+                  { id: 'NEW', label: `New (${visibleQueueLeads.filter((l) => l.status === 'NEW').length})` },
+                  { id: 'CALLBACK', label: `Callbacks (${callbackLeads.length})` },
+                  { id: 'CONNECTED', label: `Connected (${visibleQueueLeads.filter((l) => l.status === 'CONNECTED').length})` },
+                  { id: 'MEETING_BOOKED', label: `Meetings Fixed (${visibleQueueLeads.filter((l) => l.status === 'MEETING_BOOKED').length})` },
+                  { id: 'BUSY', label: `Busy/Cut (${visibleQueueLeads.filter((l) => l.status === 'BUSY' || l.status === 'CALL_CUT').length})` },
+                  { id: 'NOT_INTERESTED', label: `Not Interested (${visibleQueueLeads.filter((l) => l.status === 'NOT_INTERESTED').length})` },
+                ]
+              : [
+                  { id: 'ALL', label: `Active Queue (${visibleQueueLeads.length})` },
+                  { id: 'NEW', label: `Pending Calls (${visibleQueueLeads.filter((l) => l.status === 'NEW').length})` },
+                  { id: 'CALLBACK', label: `Callbacks Due (${callbackLeads.length})` },
+                ]
+            ).map((tab) => (
               <button
                 key={tab.id}
                 type="button"
@@ -571,7 +598,7 @@ export default function CallingCRMView({
               </div>
 
               {/* Main Action Bar */}
-              <div className="mt-4 grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+              <div className={`mt-4 grid ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 pt-2 border-t border-slate-100`}>
                 {/* 1. Direct Call */}
                 <a
                   href={`tel:${lead.phone.replace(/\s+/g, '')}`}
@@ -582,17 +609,19 @@ export default function CallingCRMView({
                   Call
                 </a>
 
-                {/* 2. 1-Click WhatsApp Pitch */}
-                <a
-                  href={generateWhatsAppLink(lead.phone, getLeadIntroWhatsAppMessage(lead, currentUserName))}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-2 py-2 text-xs font-bold text-white shadow-xs transition"
-                  title="Send 1-Click WhatsApp Intro Pitch"
-                >
-                  <MessageSquare size={13} />
-                  WA Pitch
-                </a>
+                {/* 2. 1-Click WhatsApp Pitch (Admin only for now) */}
+                {isAdmin && (
+                  <a
+                    href={generateWhatsAppLink(lead.phone, getLeadIntroWhatsAppMessage(lead, currentUserName))}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-2 py-2 text-xs font-bold text-white shadow-xs transition"
+                    title="Send 1-Click WhatsApp Intro Pitch"
+                  >
+                    <MessageSquare size={13} />
+                    WA Pitch
+                  </a>
+                )}
 
                 {/* 3. Full Status Modal */}
                 <button
@@ -726,6 +755,15 @@ export default function CallingCRMView({
         onClose={() => setShowScriptModal(false)}
         employeeName={currentUserName}
         customScript={telecallerScript}
+      />
+
+      {/* Target Achievement Celebration Modal with Confetti & Balloons */}
+      <CelebrationModal
+        isOpen={showCelebration}
+        onClose={() => setShowCelebration(false)}
+        telecallerName={currentUserName}
+        callsDialed={scorecard.dialedCount}
+        dailyTarget={scorecard.dailyTarget}
       />
     </div>
   );
