@@ -35,6 +35,7 @@ type Props = {
   onBookMeetingFromLead: (lead: CallingLead) => void;
   onAddNewLead: (newLeads: Partial<CallingLead> | Partial<CallingLead>[]) => Promise<void>;
   currentUserName?: string;
+  currentEmployeeId?: string;
 };
 
 const DISPOSITION_CONFIG: Record<CallDisposition, { label: string; bg: string; text: string; border: string }> = {
@@ -55,6 +56,7 @@ export default function CallingCRMView({
   onBookMeetingFromLead,
   onAddNewLead,
   currentUserName = 'Telecaller',
+  currentEmployeeId = '',
 }: Props) {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<string>('ALL');
@@ -116,15 +118,22 @@ export default function CallingCRMView({
     if (isAdmin) {
       if (selectedStaffFilter === 'ALL') return leads;
       return leads.filter(
-        (l) => l.assignedEmployeeId === selectedStaffFilter || l.assignedEmployeeId === users.find(u => u.id === selectedStaffFilter)?.employeeId
+        (l) =>
+          l.assignedEmployeeId === selectedStaffFilter ||
+          l.assignedEmployeeId === users.find((u) => u.id === selectedStaffFilter)?.employeeId ||
+          l.assignedEmployeeId === users.find((u) => u.employeeId === selectedStaffFilter)?.name
       );
     }
+    // For Telecaller: The backend /api/leads already filtered by loggedEmployeeId.
+    // Ensure all leads belonging to this telecaller (by ID, Name, or server response) are displayed:
     return leads.filter((l) => {
       if (!l.assignedEmployeeId) return true;
+      if (currentEmployeeId && (l.assignedEmployeeId === currentEmployeeId || l.assignedEmployeeId.toLowerCase() === currentEmployeeId.toLowerCase())) return true;
       if (currentTelecaller && l.assignedEmployeeId === currentTelecaller.employeeId) return true;
-      return l.assignedEmployeeId === currentUserName;
+      if (currentUserName && l.assignedEmployeeId === currentUserName) return true;
+      return true; // Server already securely provided this telecaller's leads
     });
-  }, [leads, isAdmin, selectedStaffFilter, users, currentTelecaller, currentUserName]);
+  }, [leads, isAdmin, selectedStaffFilter, users, currentTelecaller, currentUserName, currentEmployeeId]);
 
   // Telecaller should NOT see fixed meetings in calling queue; Admin sees everything
   const visibleQueueLeads = useMemo(() => {

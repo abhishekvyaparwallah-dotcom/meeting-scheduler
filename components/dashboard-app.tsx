@@ -485,6 +485,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                 users={users}
                 isAdmin={isAdmin}
                 currentUserName={session.user.name ?? 'Telecaller'}
+                currentEmployeeId={session.user.employeeId ?? ''}
                 onUpdateLeadStatus={handleUpdateLeadStatus}
                 onBookMeetingFromLead={(lead) => {
                   setPrefilledLead(lead);
