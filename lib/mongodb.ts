@@ -38,17 +38,6 @@ async function seedDefaultUsers() {
         },
       ]);
       console.log('[MONGODB] ✓ Root Admin seeded successfully.');
-    } else {
-      // Ensure primary admin credentials match updated credentials
-      const oldAdmin = await User.findOne({
-        $or: [{ email: 'admin@vyaparwallah.com' }, { employeeId: 'EMP-1001' }],
-      });
-      if (oldAdmin) {
-        oldAdmin.name = 'Avinash Jha';
-        oldAdmin.email = 'avinashjhacode@gmail.com';
-        oldAdmin.passwordHash = bcrypt.hashSync('Admin@111', 10);
-        await oldAdmin.save();
-      }
     }
   } catch (err) {
     console.error('[MONGODB SEED ERROR]', err);

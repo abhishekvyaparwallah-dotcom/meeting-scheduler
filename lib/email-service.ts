@@ -12,14 +12,19 @@ interface MeetingEmailPayload {
  * Creates SMTP Transporter using environment variables
  */
 function getTransporter() {
-  const host = process.env.SMTP_HOST;
+  const host = process.env.SMTP_HOST?.trim();
   const port = Number(process.env.SMTP_PORT) || 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const user = process.env.SMTP_USER?.trim();
+  let pass = process.env.SMTP_PASS?.trim();
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
 
   if (!host || !user || !pass) {
     return null;
+  }
+
+  // If Gmail SMTP and pass has spaces (e.g. 'abcd efgh ijkl mnop'), remove spaces
+  if (host.includes('gmail.com') && pass.includes(' ')) {
+    pass = pass.replace(/\s+/g, '');
   }
 
   return nodemailer.createTransport({
@@ -29,6 +34,9 @@ function getTransporter() {
     auth: {
       user,
       pass,
+    },
+    tls: {
+      rejectUnauthorized: false,
     },
   });
 }

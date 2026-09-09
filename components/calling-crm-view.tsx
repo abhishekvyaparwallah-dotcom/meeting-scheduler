@@ -230,11 +230,14 @@ export default function CallingCRMView({
   const filteredLeads = useMemo(() => {
     return visibleQueueLeads.filter((l) => {
       const matchesFilter = filterStatus === 'ALL' || l.status === filterStatus;
+      const term = searchTerm.toLowerCase();
       const matchesSearch =
-        l.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        l.clientName.toLowerCase().includes(term) ||
+        (Boolean(l.doctorName) && l.doctorName!.toLowerCase().includes(term)) ||
         l.phone.includes(searchTerm) ||
-        l.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        l.clientType.toLowerCase().includes(searchTerm.toLowerCase());
+        l.city.toLowerCase().includes(term) ||
+        l.clientType.toLowerCase().includes(term) ||
+        (Boolean(l.notes) && l.notes!.toLowerCase().includes(term));
       return matchesFilter && matchesSearch;
     });
   }, [visibleQueueLeads, filterStatus, searchTerm]);
@@ -261,38 +264,42 @@ export default function CallingCRMView({
 
   // 1-Click Fast Disposition Trigger
   const handleQuickDisposition = async (leadId: string, status: CallDisposition) => {
-    await onUpdateLeadStatus(leadId, status, `Quick disposition: marked as ${status}`);
+    await onUpdateLeadStatus(leadId, status);
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-brand-orange animate-pulse"></span>
-            <p className="text-xs font-bold uppercase tracking-wider text-brand-orange">Telecalling Workspace</p>
+            <h1 className="text-2xl font-bold tracking-tight text-brand-navy">
+              {isAdmin ? 'Telecaller Calling CRM & Lead Engine' : `Calling CRM Workspace — ${currentUserName}`}
+            </h1>
+            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+              Live Queue
+            </span>
           </div>
-          <h2 className="mt-1 text-2xl font-bold text-brand-navy">Daily Calling Queue & Lead Conversion</h2>
-          <p className="text-sm text-slate-500">
+          <p className="mt-1 text-xs text-slate-500">
             {isAdmin
-              ? 'Complete company lead repository, assignments & disposition monitoring.'
-              : 'Your active calling queue. Use 1-Click WhatsApp pitch or Direct Dial to fix meetings.'}
+              ? 'Real-time outreach monitor, daily call target pacing, and bulk lead importer.'
+              : 'Direct 1-click calling, immediate disposition logging, and meeting bookings.'}
           </p>
         </div>
 
+        {/* Action Header Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {!isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowScriptModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition"
-            >
-              <BookOpen size={17} className="text-brand-orange" />
-              Live Calling Script & Guide
-            </button>
-          )}
+          {/* Telecaller Playbook / Pitch Script Button */}
+          <button
+            type="button"
+            onClick={() => setShowScriptModal(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3.5 py-2.5 text-sm font-bold text-indigo-900 shadow-2xs transition hover:bg-indigo-100"
+          >
+            <BookOpen size={16} className="text-indigo-600" />
+            <span>Calling Script & Objection Playbook</span>
+          </button>
 
+          {/* Bulk Import Leads Button (Admin Only) */}
           {isAdmin && (
             <button
               type="button"
@@ -578,7 +585,7 @@ export default function CallingCRMView({
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search name, phone, school, clinic..."
+            placeholder="Search doctor, hospital, phone, city..."
             className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm text-slate-800 outline-none focus:border-brand-orange focus:bg-white"
           />
         </div>
@@ -609,6 +616,23 @@ export default function CallingCRMView({
                     {cfg.label}
                   </span>
                 </div>
+
+                {/* Prominently Highlighted Doctor / Contact Person Badge */}
+                {lead.doctorName && (
+                  <div className="mt-3 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 border border-emerald-300 px-3 py-2 shadow-2xs">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-xs shrink-0">
+                      👨‍⚕️
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-700 block">
+                        Doctor / Contact Person:
+                      </span>
+                      <span className="text-xs font-black text-emerald-950 truncate block">
+                        {lead.doctorName.toLowerCase().startsWith('dr') ? lead.doctorName : `Dr. ${lead.doctorName}`}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
                   <div className="flex items-center justify-between">

@@ -82,7 +82,11 @@ Best regards,
  */
 export function getLeadIntroWhatsAppMessage(lead: CallingLead, callerName: string = 'MediRank Team'): string {
   if (lead.clientType === 'Clinic / Hospital') {
-    return `Namaste Dr. Sahib / Team *${lead.clientName}* 🩺,
+    const greeting = lead.doctorName
+      ? `Dr. ${lead.doctorName.replace(/^dr\.?\s*/i, '')}`
+      : `Dr. Sahib / Team *${lead.clientName}*`;
+
+    return `Namaste ${greeting} 🩺,
 
 Mai *${callerName}* baat kar raha hu *MediRank* se.
 

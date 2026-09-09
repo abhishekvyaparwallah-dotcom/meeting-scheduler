@@ -140,8 +140,11 @@ export async function POST(request: Request) {
       challengeId,
       email: foundUser.email,
       name: foundUser.name,
-      devOtpPreview: !process.env.SMTP_HOST ? otp : undefined, // Useful dev hint if SMTP not yet configured
-      message: `A 6-digit security code has been sent to ${foundUser.email}. Valid for 5 minutes.`,
+      devOtpPreview: (!process.env.SMTP_HOST || !emailResult.success) ? otp : undefined,
+      smtpError: !emailResult.success ? emailResult.message : undefined,
+      message: emailResult.success
+        ? `A 6-digit security code has been sent to ${foundUser.email}. Valid for 5 minutes.`
+        : `SMTP Authentication failed. Use the on-screen emergency code or check SMTP_PASS.`,
     });
   } catch (err: any) {
     console.error('[OTP API ERROR]:', err);

@@ -34,6 +34,7 @@ export async function PATCH(
   if (body.status) lead.status = body.status;
   if (body.notes !== undefined) lead.notes = String(body.notes).trim();
   if (body.callbackTime !== undefined) lead.callbackTime = String(body.callbackTime).trim();
+  if (body.doctorName !== undefined) lead.doctorName = String(body.doctorName).trim();
 
   if (role === 'ADMIN') {
     if (body.clientName) lead.clientName = String(body.clientName).trim();
@@ -48,6 +49,7 @@ export async function PATCH(
   const updated: CallingLead = {
     id: lead._id.toString(),
     clientName: lead.clientName,
+    doctorName: lead.doctorName || '',
     clientType: lead.clientType,
     phone: lead.phone,
     city: lead.city,

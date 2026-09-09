@@ -24,6 +24,7 @@ export async function GET() {
     const leads: CallingLead[] = docs.map((doc: any) => ({
       id: doc._id.toString(),
       clientName: doc.clientName,
+      doctorName: doc.doctorName || '',
       clientType: doc.clientType,
       phone: doc.phone,
       city: doc.city || 'Indore',
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
     .filter((item) => item && item.clientName && item.phone)
     .map((item) => ({
       clientName: item.clientName!.trim(),
+      doctorName: item.doctorName?.trim() || '',
       clientType: item.clientType === 'School / Coaching' ? 'School / Coaching' : 'Clinic / Hospital',
       phone: item.phone!.toString().trim().replace(/[^\d+]/g, ''),
       city: item.city?.trim() || 'Indore',
@@ -102,6 +104,7 @@ export async function POST(request: Request) {
     const newRecords: CallingLead[] = inserted.map((doc: any) => ({
       id: doc._id.toString(),
       clientName: doc.clientName,
+      doctorName: doc.doctorName || '',
       clientType: doc.clientType,
       phone: doc.phone,
       city: doc.city,
@@ -135,6 +138,7 @@ export async function POST(request: Request) {
     const fallbackRecords: CallingLead[] = docsToInsert.map((item, index) => ({
       id: `LEAD-${Date.now()}-${index}`,
       clientName: item.clientName,
+      doctorName: item.doctorName || '',
       clientType: item.clientType as any,
       phone: item.phone,
       city: item.city,

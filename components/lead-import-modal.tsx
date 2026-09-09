@@ -49,6 +49,7 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
   // Single Lead Form state
   const [singleForm, setSingleForm] = useState<{
     clientName: string;
+    doctorName: string;
     clientType: ClientType;
     phone: string;
     city: string;
@@ -56,6 +57,7 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
     notes: string;
   }>({
     clientName: '',
+    doctorName: '',
     clientType: 'Clinic / Hospital',
     phone: '',
     city: 'Indore',
@@ -100,32 +102,7 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
     }
   };
 
-  // Re-apply assignment mode when mode or bulk telecaller changes
-  const handleAssignmentModeChange = (mode: AssignmentMode, selectedEmployeeId?: string) => {
-    setAssignmentMode(mode);
-    const targetEmpId = selectedEmployeeId ?? bulkTelecallerId;
-    if (selectedEmployeeId) {
-      setBulkTelecallerId(selectedEmployeeId);
-    }
-
-    if (mode === 'SINGLE') {
-      setParsedRows((prev) =>
-        prev.map((r) => ({
-          ...r,
-          assignedEmployeeId: targetEmpId,
-        }))
-      );
-    } else if (mode === 'ROUND_ROBIN' && telecallers.length > 0) {
-      setParsedRows((prev) =>
-        prev.map((r, i) => ({
-          ...r,
-          assignedEmployeeId: telecallers[i % telecallers.length].employeeId,
-        }))
-      );
-    }
-  };
-
-  // Update single row field
+  // Row edit handler
   const handleUpdateRow = (id: string, updates: Partial<ParsedLeadRow>) => {
     setParsedRows((prev) =>
       prev.map((row) => {
@@ -135,16 +112,46 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
           const { phone, isValid } = cleanPhoneNumber(updates.phone);
           updated.phone = phone;
           updated.isValid = Boolean(updated.clientName && isValid);
-          updated.validationError = isValid ? undefined : 'Invalid 10-digit mobile number';
+          updated.validationError = isValid ? undefined : 'Invalid mobile number';
+        }
+        if (updates.clientName !== undefined) {
+          const { isValid } = cleanPhoneNumber(updated.phone);
+          updated.isValid = Boolean(updates.clientName.trim() && isValid);
         }
         return updated;
       })
     );
   };
 
-  // Remove a row
-  const handleDeleteRow = (id: string) => {
+  // Remove single row
+  const handleRemoveRow = (id: string) => {
     setParsedRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Bulk Assignment Re-apply
+  const handleAssignmentModeChange = (mode: AssignmentMode, selectedEmployeeId?: string) => {
+    setAssignmentMode(mode);
+    const targetEmpId = selectedEmployeeId ?? bulkTelecallerId ?? defaultTelecallerId;
+    if (selectedEmployeeId) {
+      setBulkTelecallerId(selectedEmployeeId);
+    }
+
+    setParsedRows((prev) =>
+      prev.map((row, index) => {
+        if (mode === 'ROUND_ROBIN' && telecallers.length > 0) {
+          return {
+            ...row,
+            assignedEmployeeId: telecallers[index % telecallers.length].employeeId,
+          };
+        } else if (mode === 'SINGLE') {
+          return {
+            ...row,
+            assignedEmployeeId: targetEmpId,
+          };
+        }
+        return row;
+      })
+    );
   };
 
   // Bulk Submit Handler
@@ -159,6 +166,7 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
     try {
       const payload: Partial<CallingLead>[] = validRows.map((r) => ({
         clientName: r.clientName,
+        doctorName: r.doctorName || '',
         clientType: r.clientType,
         phone: r.phone,
         city: r.city || 'Indore',
@@ -181,7 +189,7 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
   const handleSingleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!singleForm.clientName || !singleForm.phone) {
-      alert('Please fill in client/doctor name and phone number.');
+      alert('Please fill in clinic/school name and phone number.');
       return;
     }
     const { phone, isValid } = cleanPhoneNumber(singleForm.phone);
@@ -194,7 +202,8 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
     try {
       await onImportLeads([
         {
-          clientName: singleForm.clientName,
+          clientName: singleForm.clientName.trim(),
+          doctorName: singleForm.doctorName.trim(),
           clientType: singleForm.clientType,
           phone,
           city: singleForm.city || 'Indore',
@@ -503,6 +512,13 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
                                   onChange={(e) => handleUpdateRow(row.id, { clientName: e.target.value })}
                                   className="w-full rounded border border-transparent hover:border-slate-300 focus:border-brand-orange bg-transparent px-1.5 py-1 font-semibold text-slate-900 outline-none"
                                 />
+                                {row.doctorName && (
+                                  <div className="flex items-center gap-1 mt-0.5 px-1.5">
+                                    <span className="inline-flex items-center gap-1 rounded bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">
+                                      👨‍⚕️ Dr: {row.doctorName}
+                                    </span>
+                                  </div>
+                                )}
                                 {row.notes && <p className="text-[10px] text-slate-400 truncate px-1.5">{row.notes}</p>}
                               </td>
 
@@ -572,7 +588,7 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
                               <td className="py-2.5 px-3 text-center">
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteRow(row.id)}
+                                  onClick={() => handleRemoveRow(row.id)}
                                   className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
                                   title="Delete row"
                                 >
@@ -595,16 +611,29 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
         {activeTab === 'SINGLE' && (
           <form onSubmit={handleSingleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
+              <div>
                 <label className="block text-xs font-bold uppercase text-slate-600">
-                  Doctor / Client / Institution Name *
+                  Hospital / Clinic / School Name *
                 </label>
                 <input
                   type="text"
                   required
                   value={singleForm.clientName}
                   onChange={(e) => setSingleForm({ ...singleForm, clientName: e.target.value })}
-                  placeholder="e.g. Dr. Rajesh Sharma - City Hospital / Bright Public School"
+                  placeholder="e.g. City Care Hospital / Bright Public School"
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600">
+                  Doctor / Contact Person Name
+                </label>
+                <input
+                  type="text"
+                  value={singleForm.doctorName}
+                  onChange={(e) => setSingleForm({ ...singleForm, doctorName: e.target.value })}
+                  placeholder="e.g. Dr. Rajesh Sharma / Amit Agrawal"
                   className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
                 />
               </div>
