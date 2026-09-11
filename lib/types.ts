@@ -29,6 +29,7 @@ export type AppUser = {
 export type CallingLead = {
   id: string;
   clientName: string;
+  institutionName?: string;
   doctorName?: string;
   clientType: ClientType;
   phone: string;

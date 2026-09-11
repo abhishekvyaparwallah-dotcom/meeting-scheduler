@@ -3,6 +3,7 @@ import { CallDisposition, ClientType } from '@/lib/types';
 
 export interface ICallingLead extends Document {
   clientName: string;
+  institutionName?: string;
   doctorName?: string;
   clientType: ClientType;
   phone: string;
@@ -18,6 +19,7 @@ export interface ICallingLead extends Document {
 const CallingLeadSchema = new Schema<ICallingLead>(
   {
     clientName: { type: String, required: true, trim: true },
+    institutionName: { type: String, default: '', trim: true },
     doctorName: { type: String, default: '', trim: true },
     clientType: {
       type: String,

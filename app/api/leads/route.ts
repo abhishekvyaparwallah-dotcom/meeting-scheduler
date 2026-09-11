@@ -24,6 +24,7 @@ export async function GET() {
     const leads: CallingLead[] = docs.map((doc: any) => ({
       id: doc._id.toString(),
       clientName: doc.clientName,
+      institutionName: doc.institutionName || '',
       doctorName: doc.doctorName || '',
       clientType: doc.clientType,
       phone: doc.phone,

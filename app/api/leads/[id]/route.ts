@@ -49,6 +49,7 @@ export async function PATCH(
   const updated: CallingLead = {
     id: lead._id.toString(),
     clientName: lead.clientName,
+    institutionName: lead.institutionName || '',
     doctorName: lead.doctorName || '',
     clientType: lead.clientType,
     phone: lead.phone,

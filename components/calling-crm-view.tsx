@@ -22,16 +22,20 @@ import {
   UserCheck,
   BarChart3,
   Award,
+  Calendar,
+  CalendarRange,
 } from 'lucide-react';
-import { AppUser, CallDisposition, CallingLead, ClientType } from '@/lib/types';
+import { AppUser, AuditLog, CallDisposition, CallingLead, ClientType } from '@/lib/types';
 import LeadImportModal from './lead-import-modal';
 import CallingScriptModal from './calling-script-modal';
 import CelebrationModal from './celebration-modal';
+import DateWiseReportModal from './datewise-report-modal';
 import { generateWhatsAppLink, getLeadIntroWhatsAppMessage } from '@/utils/fast2sms';
 
 type Props = {
   leads: CallingLead[];
   users: AppUser[];
+  auditLogs?: AuditLog[];
   isAdmin: boolean;
   onUpdateLeadStatus: (leadId: string, status: CallDisposition, notes?: string, callbackTime?: string) => Promise<void>;
   onBookMeetingFromLead: (lead: CallingLead) => void;
@@ -52,9 +56,65 @@ const DISPOSITION_CONFIG: Record<CallDisposition, { label: string; bg: string; t
   NOT_INTERESTED: { label: 'Not Interested', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300' },
 };
 
+// Helper to format callback date & time preview
+function getFormattedDatePreview(dateStr: string, timeStr: string): string {
+  if (!dateStr) return '';
+  try {
+    const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+    const [hour, min] = (timeStr || '16:00').split(':').map(Number);
+    const d = new Date(yyyy, mm - 1, dd, hour, min);
+    return d.toLocaleString('en-IN', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return `${dateStr} ${timeStr}`;
+  }
+}
+
+// Helper to extract clean Clinic / Hospital / Institution name for Card & Modal Headings
+export function getClinicDisplayName(clientName?: string, doctorName?: string, institutionName?: string): string {
+  if (institutionName && institutionName.trim()) {
+    return institutionName.trim();
+  }
+  if (!clientName) return 'Unnamed Clinic';
+  const match = clientName.match(/^[^(]+\(([^)]+)\)$/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return clientName.replace(/^(Dr\.|Dr|Doctor)\s+[A-Za-z\s.,'-]+[-–—|:]\s*/i, '').trim() || clientName;
+}
+
+// Helper to extract clean Doctor name
+export function getDoctorDisplayName(doctorName?: string, clientName?: string, notes?: string): string {
+  if (doctorName && doctorName.trim()) {
+    const clean = doctorName.trim();
+    return clean.toLowerCase().startsWith('dr') ? clean : `Dr. ${clean}`;
+  }
+  if (clientName) {
+    const match = clientName.match(/^([^(]+)\(([^)]+)\)$/);
+    if (match && match[1] && (match[1].toLowerCase().includes('dr') || match[1].toLowerCase().includes('doctor'))) {
+      const doc = match[1].trim();
+      return doc.toLowerCase().startsWith('dr') ? doc : `Dr. ${doc}`;
+    }
+    const docRegexMatch = clientName.match(/(?:Dr\.|Dr|Doctor)\s+[A-Za-z\s.,'-]+/i);
+    if (docRegexMatch) return docRegexMatch[0].trim();
+  }
+  if (notes) {
+    const noteMatch = notes.match(/(?:Dr\.|Dr|Doctor)\s+[A-Za-z\s.,'-]+/i);
+    if (noteMatch) return noteMatch[0].trim();
+  }
+  return '';
+}
+
 export default function CallingCRMView({
   leads,
   users,
+  auditLogs = [],
   isAdmin,
   onUpdateLeadStatus,
   onBookMeetingFromLead,
@@ -68,14 +128,26 @@ export default function CallingCRMView({
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLeadForStatus, setSelectedLeadForStatus] = useState<CallingLead | null>(null);
-  const [statusForm, setStatusForm] = useState<{ status: CallDisposition; notes: string; callbackTime: string }>({
+  const [statusForm, setStatusForm] = useState<{
+    status: CallDisposition;
+    notes: string;
+    callbackDate: string;
+    callbackTimeOnly: string;
+  }>({
     status: 'CONNECTED',
     notes: '',
-    callbackTime: '',
+    callbackDate: new Date().toISOString().slice(0, 10),
+    callbackTimeOnly: '16:00',
   });
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showDateWiseReportModal, setShowDateWiseReportModal] = useState(false);
+
+  // Admin performance date filter
+  const [perfDateFilter, setPerfDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH' | 'CUSTOM'>('ALL');
+  const [perfCustomFrom, setPerfCustomFrom] = useState('');
+  const [perfCustomTo, setPerfCustomTo] = useState('');
 
   // Daily celebration key for localStorage (e.g. target_celebrated_EMP-1004_2026-09-07)
   const todayDateStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -97,9 +169,10 @@ export default function CallingCRMView({
   const currentTelecaller = useMemo(() => {
     return users.find(
       (u) =>
-        (currentEmployeeId && u.employeeId?.toLowerCase() === currentEmployeeId.toLowerCase()) ||
-        (currentUserName && u.name?.toLowerCase() === currentUserName.toLowerCase()) ||
-        u.employeeId === currentUserName
+        u.role === 'TELECALLER' &&
+        (u.employeeId === currentEmployeeId ||
+          u.id === currentEmployeeId ||
+          u.name.toLowerCase() === currentUserName.toLowerCase())
     );
   }, [users, currentUserName, currentEmployeeId]);
 
@@ -108,20 +181,64 @@ export default function CallingCRMView({
     return currentTelecaller?.customScript || currentScript || '';
   }, [currentTelecaller, currentScript]);
 
-  // Telecaller-specific performance breakdown for Admin
+  // Calculated date range for Telecaller Performance monitor
+  const perfDateRange = useMemo(() => {
+    if (perfDateFilter === 'ALL') return null;
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    if (perfDateFilter === 'TODAY') {
+      return { from: today, to: today, label: 'Today' };
+    }
+    if (perfDateFilter === 'YESTERDAY') {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yStr = y.toISOString().slice(0, 10);
+      return { from: yStr, to: yStr, label: 'Yesterday' };
+    }
+    if (perfDateFilter === 'LAST_7_DAYS') {
+      const d7 = new Date();
+      d7.setDate(d7.getDate() - 7);
+      return { from: d7.toISOString().slice(0, 10), to: today, label: 'Last 7 Days' };
+    }
+    if (perfDateFilter === 'THIS_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from: firstDay.toISOString().slice(0, 10), to: today, label: 'This Month' };
+    }
+    if (perfDateFilter === 'CUSTOM') {
+      return { from: perfCustomFrom || '1970-01-01', to: perfCustomTo || today, label: 'Custom Range' };
+    }
+    return null;
+  }, [perfDateFilter, perfCustomFrom, perfCustomTo]);
+
+  // Telecaller-specific performance breakdown for Admin (Date Filter Aware)
   const telecallerPerformance = useMemo(() => {
     const telecallers = users.filter((u) => u.role === 'TELECALLER');
     return telecallers.map((t) => {
       const userLeads = leads.filter(
         (l) => l.assignedEmployeeId === t.employeeId || l.assignedEmployeeId === t.name
       );
-      const totalAssigned = userLeads.length;
-      const connected = userLeads.filter((l) => l.status === 'CONNECTED').length;
-      const callbacks = userLeads.filter((l) => l.status === 'CALLBACK').length;
-      const booked = userLeads.filter((l) => l.status === 'MEETING_BOOKED').length;
-      const callCut = userLeads.filter((l) => l.status === 'CALL_CUT' || l.status === 'BUSY').length;
-      const notInterested = userLeads.filter((l) => l.status === 'NOT_INTERESTED').length;
-      const pendingNew = userLeads.filter((l) => l.status === 'NEW').length;
+
+      let assignedLeads = userLeads;
+      let actionLeads = userLeads;
+
+      if (perfDateRange) {
+        assignedLeads = userLeads.filter((l) => {
+          const cDate = l.createdAt ? l.createdAt.slice(0, 10) : '';
+          return (!perfDateRange.from || cDate >= perfDateRange.from) && (!perfDateRange.to || cDate <= perfDateRange.to);
+        });
+        actionLeads = userLeads.filter((l) => {
+          const uDate = l.updatedAt ? l.updatedAt.slice(0, 10) : (l.createdAt ? l.createdAt.slice(0, 10) : '');
+          return (!perfDateRange.from || uDate >= perfDateRange.from) && (!perfDateRange.to || uDate <= perfDateRange.to);
+        });
+      }
+
+      const totalAssigned = assignedLeads.length;
+      const connected = actionLeads.filter((l) => l.status === 'CONNECTED').length;
+      const callbacks = actionLeads.filter((l) => l.status === 'CALLBACK').length;
+      const booked = actionLeads.filter((l) => l.status === 'MEETING_BOOKED').length;
+      const callCut = actionLeads.filter((l) => l.status === 'CALL_CUT' || l.status === 'BUSY').length;
+      const notInterested = actionLeads.filter((l) => l.status === 'NOT_INTERESTED').length;
+      const pendingNew = assignedLeads.filter((l) => l.status === 'NEW').length;
       // Daily completed target counts only finalized calls (excluding pending callbacks)
       const dialed = connected + booked + notInterested + callCut;
       const target = t.dailyTarget ?? 50;
@@ -141,7 +258,7 @@ export default function CallingCRMView({
         target,
       };
     });
-  }, [users, leads]);
+  }, [users, leads, perfDateRange]);
 
   // Telecaller sees their assigned leads (+ unassigned pool). Admin sees all or selected staff
   const accessibleLeads = useMemo(() => {
@@ -242,22 +359,66 @@ export default function CallingCRMView({
     });
   }, [visibleQueueLeads, filterStatus, searchTerm]);
 
-  const handleOpenStatusModal = (lead: CallingLead) => {
+  const handleOpenStatusModal = (lead: CallingLead, initialStatus?: CallDisposition) => {
     setSelectedLeadForStatus(lead);
+
+    let initialDate = new Date().toISOString().slice(0, 10);
+    let initialTime = '16:00';
+
+    if (lead.callbackTime) {
+      const dateMatch = lead.callbackTime.match(/(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) {
+        initialDate = dateMatch[1];
+      }
+      const timeMatch = lead.callbackTime.match(/(\d{1,2}:\d{2})/);
+      if (timeMatch) {
+        initialTime = timeMatch[1].padStart(5, '0');
+      }
+    } else {
+      const now = new Date();
+      now.setHours(now.getHours() + 1, 0, 0, 0);
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      initialTime = `${hh}:${mm}`;
+    }
+
+    // Clean legacy "Dr: ..." notes so telecallers write actual call feedback
+    const cleanNotes =
+      lead.notes &&
+      !lead.notes.toLowerCase().startsWith('dr:') &&
+      !lead.notes.toLowerCase().startsWith('dr :')
+        ? lead.notes
+        : '';
+
     setStatusForm({
-      status: lead.status,
-      notes: lead.notes ?? '',
-      callbackTime: lead.callbackTime ?? '',
+      status: initialStatus || lead.status || 'CONNECTED',
+      notes: cleanNotes,
+      callbackDate: initialDate,
+      callbackTimeOnly: initialTime,
     });
   };
 
   const handleSaveStatus = async () => {
     if (!selectedLeadForStatus) return;
+
+    if (!statusForm.notes.trim()) {
+      alert('Kripya Call Notes / Discussion likhein (telecaller se client ki kya baat hui). Yeh zaroori (mandatory) hai.');
+      return;
+    }
+
+    let computedCallbackTime = '';
+    if (statusForm.status === 'CALLBACK') {
+      computedCallbackTime = getFormattedDatePreview(
+        statusForm.callbackDate,
+        statusForm.callbackTimeOnly
+      ) || `${statusForm.callbackDate} ${statusForm.callbackTimeOnly}`;
+    }
+
     await onUpdateLeadStatus(
       selectedLeadForStatus.id,
       statusForm.status,
-      statusForm.notes,
-      statusForm.callbackTime
+      statusForm.notes.trim(),
+      computedCallbackTime
     );
     setSelectedLeadForStatus(null);
   };
@@ -289,6 +450,18 @@ export default function CallingCRMView({
 
         {/* Action Header Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Date-Wise Report Button (Admin Only) */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowDateWiseReportModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50/90 px-3.5 py-2.5 text-sm font-bold text-orange-900 shadow-2xs transition hover:bg-orange-100"
+            >
+              <Calendar className="text-brand-orange" size={17} />
+              <span>Date-Wise Calling Report</span>
+            </button>
+          )}
+
           {/* Telecaller Playbook / Pitch Script Button */}
           <button
             type="button"
@@ -407,11 +580,77 @@ export default function CallingCRMView({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <BarChart3 size={18} className="text-brand-orange" />
-              <h3 className="text-base font-bold text-brand-navy">Telecaller Performance & Results Monitor</h3>
+              <div>
+                <h3 className="text-base font-bold text-brand-navy">Telecaller Performance & Results Monitor</h3>
+                <p className="text-[11px] text-slate-500">
+                  Track date-wise calling productivity, leads assigned, and target pacing.
+                </p>
+              </div>
             </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-              {telecallerPerformance.length} Active Telecallers
-            </span>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                {telecallerPerformance.length} Active Telecallers
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setShowDateWiseReportModal(true)}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:from-orange-600 hover:to-amber-700 transition"
+              >
+                <Calendar size={14} />
+                <span>Date-Wise Calling Report</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Date Filter Bar for Monitor */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-600 mr-1">Period:</span>
+              {(
+                [
+                  { key: 'ALL', label: 'All Time' },
+                  { key: 'TODAY', label: 'Today' },
+                  { key: 'YESTERDAY', label: 'Yesterday' },
+                  { key: 'LAST_7_DAYS', label: 'Last 7 Days' },
+                  { key: 'THIS_MONTH', label: 'This Month' },
+                  { key: 'CUSTOM', label: 'Custom Range' },
+                ] as const
+              ).map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  onClick={() => setPerfDateFilter(preset.key)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                    perfDateFilter === preset.key
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            {perfDateFilter === 'CUSTOM' && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500 font-semibold">From:</span>
+                <input
+                  type="date"
+                  value={perfCustomFrom}
+                  onChange={(e) => setPerfCustomFrom(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-800"
+                />
+                <span className="text-slate-500 font-semibold">To:</span>
+                <input
+                  type="date"
+                  value={perfCustomTo}
+                  onChange={(e) => setPerfCustomTo(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-800"
+                />
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -419,7 +658,9 @@ export default function CallingCRMView({
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                 <tr>
                   <th className="py-2.5 px-3 font-bold">Telecaller Staff</th>
-                  <th className="py-2.5 px-3 font-bold">Assigned</th>
+                  <th className="py-2.5 px-3 font-bold">
+                    {perfDateFilter === 'ALL' ? 'Total Assigned' : 'Period Assigned'}
+                  </th>
                   <th className="py-2.5 px-3 font-bold">Calls Made</th>
                   <th className="py-2.5 px-3 font-bold">Connected</th>
                   <th className="py-2.5 px-3 font-bold">Callbacks</th>
@@ -596,6 +837,8 @@ export default function CallingCRMView({
         {filteredLeads.map((lead) => {
           const cfg = DISPOSITION_CONFIG[lead.status] || DISPOSITION_CONFIG.NEW;
           const assignedUser = users.find((u) => u.employeeId === lead.assignedEmployeeId);
+          const clinicName = getClinicDisplayName(lead.clientName, lead.doctorName);
+          const doctorName = getDoctorDisplayName(lead.doctorName, lead.clientName);
 
           return (
             <div
@@ -608,7 +851,7 @@ export default function CallingCRMView({
                     <span className="inline-block rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 border border-slate-200">
                       {lead.clientType}
                     </span>
-                    <h3 className="mt-1.5 text-lg font-bold text-brand-navy">{lead.clientName}</h3>
+                    <h3 className="mt-1.5 text-lg font-bold text-brand-navy">{clinicName}</h3>
                     <p className="text-xs text-slate-500">📍 {lead.city}</p>
                   </div>
 
@@ -618,7 +861,7 @@ export default function CallingCRMView({
                 </div>
 
                 {/* Prominently Highlighted Doctor / Contact Person Badge */}
-                {lead.doctorName && (
+                {doctorName && (
                   <div className="mt-3 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 border border-emerald-300 px-3 py-2 shadow-2xs">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-xs shrink-0">
                       👨‍⚕️
@@ -628,7 +871,7 @@ export default function CallingCRMView({
                         Doctor / Contact Person:
                       </span>
                       <span className="text-xs font-black text-emerald-950 truncate block">
-                        {lead.doctorName.toLowerCase().startsWith('dr') ? lead.doctorName : `Dr. ${lead.doctorName}`}
+                        {doctorName}
                       </span>
                     </div>
                   </div>
@@ -651,9 +894,11 @@ export default function CallingCRMView({
                       <span>{lead.callbackTime}</span>
                     </div>
                   )}
-                  {lead.notes && (
-                    <p className="border-t border-slate-200 pt-1.5 text-slate-600 italic">"{lead.notes}"</p>
-                  )}
+                  {lead.notes &&
+                    !lead.notes.toLowerCase().startsWith('dr:') &&
+                    !lead.notes.toLowerCase().startsWith('dr :') && (
+                      <p className="border-t border-slate-200 pt-1.5 text-slate-600 italic">"{lead.notes}"</p>
+                    )}
                 </div>
 
                 {/* 1-Click Fast Disposition Chips */}
@@ -662,28 +907,29 @@ export default function CallingCRMView({
                   <button
                     type="button"
                     onClick={() => handleQuickDisposition(lead.id, 'CONNECTED')}
-                    className="rounded-md bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 font-bold text-emerald-800 transition"
+                    className="rounded-md bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 font-bold text-emerald-800 transition shadow-2xs"
                   >
                     Connected
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleQuickDisposition(lead.id, 'CALLBACK')}
-                    className="rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 font-bold text-amber-800 transition"
+                    onClick={() => handleOpenStatusModal(lead, 'CALLBACK')}
+                    className="rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 font-bold text-amber-800 transition shadow-2xs flex items-center gap-1"
                   >
+                    <Clock size={10} />
                     Callback
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickDisposition(lead.id, 'NOT_INTERESTED')}
-                    className="rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-0.5 font-bold text-slate-700 transition"
+                    className="rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-0.5 font-bold text-slate-700 transition shadow-2xs"
                   >
                     Not Interested
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickDisposition(lead.id, 'CALL_CUT')}
-                    className="rounded-md bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 font-bold text-rose-800 transition"
+                    className="rounded-md bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 font-bold text-rose-800 transition shadow-2xs"
                   >
                     Ringing
                   </button>
@@ -752,13 +998,20 @@ export default function CallingCRMView({
 
       {/* Status Modal */}
       {selectedLeadForStatus && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl my-8">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-brand-orange">Update Call Disposition</p>
-                <h3 className="text-lg font-bold text-brand-navy">{selectedLeadForStatus.clientName}</h3>
-                <p className="text-xs text-slate-500">{selectedLeadForStatus.phone}</p>
+                <h3 className="text-lg font-bold text-brand-navy">
+                  {getClinicDisplayName(selectedLeadForStatus.clientName, selectedLeadForStatus.doctorName)}
+                </h3>
+                {getDoctorDisplayName(selectedLeadForStatus.doctorName, selectedLeadForStatus.clientName) && (
+                  <p className="text-xs font-bold text-emerald-700 mt-0.5">
+                    👨‍⚕️ {getDoctorDisplayName(selectedLeadForStatus.doctorName, selectedLeadForStatus.clientName)}
+                  </p>
+                )}
+                <p className="text-xs text-slate-500 font-mono mt-0.5">{selectedLeadForStatus.phone}</p>
               </div>
               <button
                 type="button"
@@ -786,28 +1039,183 @@ export default function CallingCRMView({
                 </select>
               </div>
 
+              {/* Dedicated Callback Date & Time Picker */}
               {statusForm.status === 'CALLBACK' && (
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600">Callback Timing</label>
-                  <input
-                    type="text"
-                    value={statusForm.callbackTime}
-                    onChange={(e) => setStatusForm({ ...statusForm, callbackTime: e.target.value })}
-                    placeholder="e.g. Today at 4:30 PM / Tomorrow 11 AM"
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-orange"
-                  />
+                <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
+                      <Clock size={14} className="text-amber-600" />
+                      Schedule Callback Date & Time *
+                    </label>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full border border-amber-300">
+                      Reminder
+                    </span>
+                  </div>
+
+                  {/* 1-Click Quick Shortcuts */}
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 block mb-1.5">
+                      ⚡ Quick Shortcuts:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setHours(d.getHours() + 1);
+                          setStatusForm({
+                            ...statusForm,
+                            callbackDate: d.toISOString().slice(0, 10),
+                            callbackTimeOnly: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+                          });
+                        }}
+                        className="rounded-lg bg-white border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                      >
+                        +1 Hour
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setHours(d.getHours() + 2);
+                          setStatusForm({
+                            ...statusForm,
+                            callbackDate: d.toISOString().slice(0, 10),
+                            callbackTimeOnly: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+                          });
+                        }}
+                        className="rounded-lg bg-white border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                      >
+                        +2 Hours
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStatusForm({
+                            ...statusForm,
+                            callbackDate: new Date().toISOString().slice(0, 10),
+                            callbackTimeOnly: '17:00',
+                          });
+                        }}
+                        className="rounded-lg bg-white border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                      >
+                        Today 5:00 PM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          setStatusForm({
+                            ...statusForm,
+                            callbackDate: tomorrow.toISOString().slice(0, 10),
+                            callbackTimeOnly: '11:00',
+                          });
+                        }}
+                        className="rounded-lg bg-white border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                      >
+                        Tomorrow 11:00 AM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          setStatusForm({
+                            ...statusForm,
+                            callbackDate: tomorrow.toISOString().slice(0, 10),
+                            callbackTimeOnly: '15:00',
+                          });
+                        }}
+                        className="rounded-lg bg-white border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                      >
+                        Tomorrow 3:00 PM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const dayAfter = new Date();
+                          dayAfter.setDate(dayAfter.getDate() + 2);
+                          setStatusForm({
+                            ...statusForm,
+                            callbackDate: dayAfter.toISOString().slice(0, 10),
+                            callbackTimeOnly: '11:00',
+                          });
+                        }}
+                        className="rounded-lg bg-white border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                      >
+                        Day After (11 AM)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Custom Date & Time Inputs */}
+                  <div className="grid grid-cols-2 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">📅 Callback Date</label>
+                      <input
+                        type="date"
+                        required
+                        min={new Date().toISOString().slice(0, 10)}
+                        value={statusForm.callbackDate}
+                        onChange={(e) => setStatusForm({ ...statusForm, callbackDate: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">⏰ Callback Time</label>
+                      <input
+                        type="time"
+                        required
+                        value={statusForm.callbackTimeOnly}
+                        onChange={(e) => setStatusForm({ ...statusForm, callbackTimeOnly: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Selected Callback Preview */}
+                  {statusForm.callbackDate && statusForm.callbackTimeOnly && (
+                    <div className="flex items-center gap-2 rounded-lg bg-amber-100 border border-amber-300 px-2.5 py-1.5 text-xs font-bold text-amber-950">
+                      <span>⏰</span>
+                      <span>
+                        Scheduled Callback:{' '}
+                        <span className="underline">
+                          {getFormattedDatePreview(statusForm.callbackDate, statusForm.callbackTimeOnly)}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-600">Call Notes / Discussion</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase text-slate-700">
+                    Call Notes / Discussion (Kya Baat Hui) <span className="text-rose-500 font-bold">*</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                    Mandatory
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  required
                   value={statusForm.notes}
                   onChange={(e) => setStatusForm({ ...statusForm, notes: e.target.value })}
-                  placeholder="What did the client say? Any specific interest?"
-                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-orange"
+                  placeholder="Client se kya baat hui? Unka response, interest ya reason yahan likhein (Mandatory)..."
+                  className={`mt-1 w-full rounded-xl border p-3 text-sm outline-none transition ${
+                    !statusForm.notes.trim()
+                      ? 'border-slate-300 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange'
+                      : 'border-emerald-300 bg-emerald-50/20 focus:border-emerald-500'
+                  }`}
                 />
+                {!statusForm.notes.trim() && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    ✍️ Telecaller ki client se hui baat-cheet ka vivaran likhna anivarya (mandatory) hai.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -822,7 +1230,7 @@ export default function CallingCRMView({
               <button
                 type="button"
                 onClick={handleSaveStatus}
-                className="rounded-xl bg-brand-orange px-5 py-2 text-sm font-bold text-white transition hover:bg-brand-orangeHover"
+                className="rounded-xl bg-brand-orange px-5 py-2 text-sm font-bold text-white transition hover:bg-brand-orangeHover shadow-md shadow-orange-500/20"
               >
                 Save Disposition
               </button>
@@ -856,6 +1264,15 @@ export default function CallingCRMView({
         telecallerName={currentUserName}
         callsDialed={scorecard.dialedCount}
         dailyTarget={scorecard.dailyTarget}
+      />
+
+      {/* Date-Wise Calling & Lead Assignment Report Modal (Admin / Manager) */}
+      <DateWiseReportModal
+        isOpen={showDateWiseReportModal}
+        onClose={() => setShowDateWiseReportModal(false)}
+        leads={leads}
+        users={users}
+        auditLogs={auditLogs}
       />
     </div>
   );

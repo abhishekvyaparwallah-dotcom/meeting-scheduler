@@ -23,6 +23,7 @@ import {
   Target,
   Eye,
   EyeOff,
+  Clock,
 } from 'lucide-react';
 import { generateWhatsAppLink, getMeetingWhatsAppMessage } from '@/utils/fast2sms';
 import Sidebar from '@/components/sidebar';
@@ -54,6 +55,48 @@ type Props = {
   session: SessionShape;
   activeRoute?: 'dashboard' | 'crm' | 'calling';
 };
+
+// Formats UTC/ISO timestamps into clear, prominent readable Indian Standard Date & 12h Time
+function formatLogTimestamp(ts?: string): { dateStr: string; timeStr: string } {
+  if (!ts) return { dateStr: 'Recent', timeStr: '' };
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) {
+      return { dateStr: ts, timeStr: '' };
+    }
+
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+
+    const timeStr = d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+
+    if (isToday) {
+      return { dateStr: 'Today', timeStr };
+    }
+    if (isYesterday) {
+      return { dateStr: 'Yesterday', timeStr };
+    }
+
+    const dateStr = d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    return { dateStr, timeStr };
+  } catch {
+    return { dateStr: ts, timeStr: '' };
+  }
+}
 
 export default function DashboardApp({ session, activeRoute }: Props) {
   const isAdmin = session.user.role === 'ADMIN';
@@ -528,6 +571,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
               <CallingCRMView
                 leads={leads}
                 users={users}
+                auditLogs={auditLogs}
                 isAdmin={isAdmin}
                 currentUserName={currentUserProfile?.name ?? session.user.name ?? 'Telecaller'}
                 currentEmployeeId={currentUserProfile?.employeeId ?? session.user.employeeId ?? ''}
@@ -889,23 +933,36 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                     <h3 className="text-lg font-bold text-brand-navy">System Activity & Audit Logs</h3>
                   </div>
 
-                  <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1 text-xs">
-                    {auditLogs.map((log) => (
-                      <div key={log.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <div className="flex items-center justify-between font-semibold">
-                          <span className="text-brand-orange">{log.actionType}</span>
-                          <span className="text-slate-400 font-mono text-[10px]">
-                            {log.createdAt}
-                          </span>
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1 text-xs">
+                    {auditLogs.map((log) => {
+                      const { dateStr, timeStr } = formatLogTimestamp(log.createdAt);
+                      return (
+                        <div key={log.id} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-2 hover:border-slate-300 transition">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="rounded-md bg-orange-50 px-2 py-0.5 text-xs font-bold text-brand-orange border border-orange-200 font-mono">
+                              {log.actionType}
+                            </span>
+                            <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-slate-800 border border-slate-200">
+                              <Clock size={13} className="text-brand-orange" />
+                              <span className="text-xs font-black tracking-tight">{dateStr}</span>
+                              {timeStr && (
+                                <>
+                                  <span className="text-slate-400 font-normal">•</span>
+                                  <span className="text-xs font-black text-slate-950 font-mono">{timeStr}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs font-medium text-slate-800 leading-relaxed">{log.details}</p>
+                          <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px] text-slate-500">
+                            <span>By: <strong className="text-slate-700 font-bold">{log.employeeName}</strong></span>
+                            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] text-slate-600 font-semibold">{log.employeeId}</span>
+                          </div>
                         </div>
-                        <p className="text-slate-700 mt-1">{log.details}</p>
-                        <p className="text-slate-400 font-mono text-[10px] mt-1">
-                          By: {log.employeeName} ({log.employeeId})
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {auditLogs.length === 0 && (
-                      <p className="p-4 text-center text-slate-400">No activity logged yet.</p>
+                      <p className="p-4 text-center text-slate-400 font-medium">No activity logged yet.</p>
                     )}
                   </div>
                 </div>

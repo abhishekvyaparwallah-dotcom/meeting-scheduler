@@ -166,12 +166,10 @@ export function parseExcelOrCsvFile(
     }
 
     let clientName = '';
-    if (doctorName && institutionName) {
-      clientName = `${doctorName} (${institutionName})`;
+    if (institutionName) {
+      clientName = institutionName;
     } else if (doctorName) {
       clientName = doctorName;
-    } else if (institutionName) {
-      clientName = institutionName;
     } else {
       const firstVal = Object.values(row).find((v) => typeof v === 'string' && v.trim().length > 0);
       clientName = firstVal ? String(firstVal).trim() : `Lead #${index + 1}`;
@@ -196,7 +194,7 @@ export function parseExcelOrCsvFile(
       clientType,
       phone,
       city,
-      notes: notes || (doctorName && institutionName ? `Dr: ${doctorName}` : ''),
+      notes: notes || '',
       assignedEmployeeId: defaultEmployeeId,
       isValid,
       validationError: isValid ? undefined : validationError,
