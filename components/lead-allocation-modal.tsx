@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
   Database,
@@ -62,6 +62,18 @@ export default function LeadAllocationModal({
   const [batchTargetEmpId, setBatchTargetEmpId] = useState<string>(defaultTelecallerId);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 20;
+
+  // Auto-sync telecaller selection when users or modal state updates
+  useEffect(() => {
+    if (telecallers.length > 0) {
+      if (!quickTargetEmpId || !telecallers.some((t) => t.employeeId === quickTargetEmpId)) {
+        setQuickTargetEmpId(telecallers[0].employeeId);
+      }
+      if (!batchTargetEmpId || !telecallers.some((t) => t.employeeId === batchTargetEmpId)) {
+        setBatchTargetEmpId(telecallers[0].employeeId);
+      }
+    }
+  }, [telecallers, isOpen, quickTargetEmpId, batchTargetEmpId]);
 
   // Helper to check if a lead is unassigned
   const isUnassignedLead = (lead: CallingLead) => {
@@ -142,7 +154,8 @@ export default function LeadAllocationModal({
 
   // Dispatch Mode 1: Quick Count allocation
   const handleQuickDispatch = async () => {
-    if (!quickTargetEmpId) {
+    const targetEmpId = quickTargetEmpId || telecallers[0]?.employeeId;
+    if (!targetEmpId) {
       alert('Please select a telecaller to assign leads.');
       return;
     }
@@ -156,10 +169,10 @@ export default function LeadAllocationModal({
     try {
       await onAllocateLeads({
         mode: 'QUICK_COUNT',
-        targetEmployeeId: quickTargetEmpId,
+        targetEmployeeId: targetEmpId,
         count: quickCount,
       });
-      const staffName = telecallers.find((u) => u.employeeId === quickTargetEmpId)?.name || quickTargetEmpId;
+      const staffName = telecallers.find((u) => u.employeeId === targetEmpId)?.name || targetEmpId;
       setStatusMessage({
         type: 'success',
         text: `✓ Successfully dispatched ${Math.min(quickCount, unassignedCount)} leads to ${staffName}!`,
@@ -214,7 +227,8 @@ export default function LeadAllocationModal({
   // Dispatch Mode 3: Specific Checkbox Selection
   const handleBatchAssignSelected = async () => {
     if (selectedLeadIds.length === 0) return;
-    if (!batchTargetEmpId) {
+    const targetEmpId = batchTargetEmpId || telecallers[0]?.employeeId;
+    if (!targetEmpId) {
       alert('Please choose a telecaller.');
       return;
     }
@@ -225,9 +239,9 @@ export default function LeadAllocationModal({
       await onAllocateLeads({
         mode: 'SPECIFIC_LEADS',
         leadIds: selectedLeadIds,
-        targetEmployeeId: batchTargetEmpId,
+        targetEmployeeId: targetEmpId,
       });
-      const staffName = telecallers.find((u) => u.employeeId === batchTargetEmpId)?.name || batchTargetEmpId;
+      const staffName = telecallers.find((u) => u.employeeId === targetEmpId)?.name || targetEmpId;
       setStatusMessage({
         type: 'success',
         text: `✓ Successfully allocated ${selectedLeadIds.length} chosen leads to ${staffName}!`,
@@ -351,7 +365,7 @@ export default function LeadAllocationModal({
                   Target Telecaller:
                 </label>
                 <select
-                  value={quickTargetEmpId}
+                  value={quickTargetEmpId || telecallers[0]?.employeeId || ''}
                   onChange={(e) => setQuickTargetEmpId(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
                 >
@@ -503,7 +517,7 @@ export default function LeadAllocationModal({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-600">Assign to:</span>
                   <select
-                    value={batchTargetEmpId}
+                    value={batchTargetEmpId || telecallers[0]?.employeeId || ''}
                     onChange={(e) => setBatchTargetEmpId(e.target.value)}
                     className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-brand-orange"
                   >
