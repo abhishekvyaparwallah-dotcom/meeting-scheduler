@@ -62,7 +62,7 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
     clientType: 'Clinic / Hospital',
     phone: '',
     city: 'Indore',
-    assignedEmployeeId: defaultTelecallerId,
+    assignedEmployeeId: 'UNASSIGNED',
     notes: '',
   });
 
@@ -78,7 +78,8 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
 
     try {
       const buffer = await file.arrayBuffer();
-      const rows = parseExcelOrCsvFile(buffer, bulkTelecallerId || defaultTelecallerId);
+      const initialTarget = assignmentMode === 'POOL' ? 'UNASSIGNED' : (bulkTelecallerId || defaultTelecallerId);
+      const rows = parseExcelOrCsvFile(buffer, initialTarget);
       
       // Apply initial assignment mode
       let assignedRows = [...rows];
@@ -522,7 +523,9 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
                           <th className="py-2.5 px-3">Category</th>
                           <th className="py-2.5 px-3">Phone Number</th>
                           <th className="py-2.5 px-3">City</th>
-                          <th className="py-2.5 px-3">Assigned Telecaller</th>
+                          <th className="py-2.5 px-3">
+                            {assignmentMode === 'POOL' ? 'Target Destination' : 'Assigned Telecaller'}
+                          </th>
                           <th className="py-2.5 px-3 text-center">Action</th>
                         </tr>
                       </thead>
@@ -598,19 +601,27 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
                                 />
                               </td>
 
-                              {/* Telecaller */}
+                              {/* Telecaller / Destination */}
                               <td className="py-2.5 px-3">
-                                <select
-                                  value={row.assignedEmployeeId}
-                                  onChange={(e) => handleUpdateRow(row.id, { assignedEmployeeId: e.target.value })}
-                                  className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-brand-orange"
-                                >
-                                  {telecallers.map((t) => (
-                                    <option key={t.employeeId} value={t.employeeId}>
-                                      {t.name} ({t.employeeId})
-                                    </option>
-                                  ))}
-                                </select>
+                                {assignmentMode === 'POOL' ? (
+                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                    Master Pool (Unassigned)
+                                  </span>
+                                ) : (
+                                  <select
+                                    value={row.assignedEmployeeId}
+                                    onChange={(e) => handleUpdateRow(row.id, { assignedEmployeeId: e.target.value })}
+                                    className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-brand-orange"
+                                  >
+                                    <option value="UNASSIGNED">⚪ Master Pool (Unassigned)</option>
+                                    {telecallers.map((t) => (
+                                      <option key={t.employeeId} value={t.employeeId}>
+                                        {t.name} ({t.employeeId})
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
                               </td>
 
                               {/* Action */}
@@ -703,12 +714,13 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-600">Assign To Telecaller</label>
+                <label className="block text-xs font-bold uppercase text-slate-600">Allocation Target</label>
                 <select
                   value={singleForm.assignedEmployeeId}
                   onChange={(e) => setSingleForm({ ...singleForm, assignedEmployeeId: e.target.value })}
                   className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-brand-orange"
                 >
+                  <option value="UNASSIGNED">⚪ Save to Master Pool (Unassigned)</option>
                   {telecallers.map((t) => (
                     <option key={t.employeeId} value={t.employeeId}>
                       {t.name} ({t.employeeId})
@@ -753,10 +765,14 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
               }`}
             >
               {isSubmitting ? (
-                'Importing & Assigning...'
+                assignmentMode === 'POOL' ? 'Saving to Master Pool...' : 'Importing & Assigning...'
               ) : (
                 <>
-                  <span>Import & Assign {validCount > 0 ? `${validCount} Leads` : ''}</span>
+                  <span>
+                    {assignmentMode === 'POOL'
+                      ? `Save ${validCount > 0 ? `${validCount} Leads ` : ''}to Master Pool`
+                      : `Import & Assign ${validCount > 0 ? `${validCount} Leads` : ''}`}
+                  </span>
                   <ArrowRight size={16} />
                 </>
               )}
@@ -766,9 +782,14 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
               type="button"
               disabled={isSubmitting}
               onClick={handleSingleSubmit}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-6 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 shadow-md shadow-slate-900/10"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-2.5 text-sm font-bold text-white transition hover:bg-brand-orangeHover shadow-md shadow-orange-500/20"
             >
-              {isSubmitting ? 'Saving...' : 'Add & Assign Lead'}
+              <span>
+                {singleForm.assignedEmployeeId === 'UNASSIGNED'
+                  ? 'Save to Master Pool'
+                  : 'Add & Assign Single Lead'}
+              </span>
+              <ArrowRight size={16} />
             </button>
           )}
         </div>
