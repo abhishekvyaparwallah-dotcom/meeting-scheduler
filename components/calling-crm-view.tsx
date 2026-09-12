@@ -24,12 +24,14 @@ import {
   Award,
   Calendar,
   CalendarRange,
+  Database,
 } from 'lucide-react';
 import { AppUser, AuditLog, CallDisposition, CallingLead, ClientType } from '@/lib/types';
 import LeadImportModal from './lead-import-modal';
 import CallingScriptModal from './calling-script-modal';
 import CelebrationModal from './celebration-modal';
 import DateWiseReportModal from './datewise-report-modal';
+import LeadAllocationModal from './lead-allocation-modal';
 import { generateWhatsAppLink, getLeadIntroWhatsAppMessage } from '@/utils/fast2sms';
 
 type Props = {
@@ -40,6 +42,14 @@ type Props = {
   onUpdateLeadStatus: (leadId: string, status: CallDisposition, notes?: string, callbackTime?: string) => Promise<void>;
   onBookMeetingFromLead: (lead: CallingLead) => void;
   onAddNewLead: (newLeads: Partial<CallingLead> | Partial<CallingLead>[]) => Promise<void>;
+  onAllocateLeads?: (params: {
+    mode: 'SPECIFIC_LEADS' | 'QUICK_COUNT' | 'DISTRIBUTE_EQUALLY';
+    leadIds?: string[];
+    targetEmployeeId?: string;
+    count?: number;
+    countPerTelecaller?: number;
+    telecallerIds?: string[];
+  }) => Promise<void>;
   currentUserName?: string;
   currentEmployeeId?: string;
   currentDailyTarget?: number;
@@ -119,6 +129,7 @@ export default function CallingCRMView({
   onUpdateLeadStatus,
   onBookMeetingFromLead,
   onAddNewLead,
+  onAllocateLeads,
   currentUserName = 'Telecaller',
   currentEmployeeId = '',
   currentDailyTarget,
@@ -143,6 +154,18 @@ export default function CallingCRMView({
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showDateWiseReportModal, setShowDateWiseReportModal] = useState(false);
+  const [showAllocationModal, setShowAllocationModal] = useState(false);
+
+  // Unassigned pool count
+  const unassignedPoolCount = useMemo(() => {
+    return leads.filter(
+      (l) =>
+        !l.assignedEmployeeId ||
+        l.assignedEmployeeId === 'UNASSIGNED' ||
+        l.assignedEmployeeId === 'ADMIN' ||
+        l.assignedEmployeeId === 'EMP-1001'
+    ).length;
+  }, [leads]);
 
   // Admin performance date filter
   const [perfDateFilter, setPerfDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH' | 'CUSTOM'>('ALL');
@@ -264,6 +287,15 @@ export default function CallingCRMView({
   const accessibleLeads = useMemo(() => {
     if (isAdmin) {
       if (selectedStaffFilter === 'ALL') return leads;
+      if (selectedStaffFilter === 'UNASSIGNED') {
+        return leads.filter(
+          (l) =>
+            !l.assignedEmployeeId ||
+            l.assignedEmployeeId === 'UNASSIGNED' ||
+            l.assignedEmployeeId === 'ADMIN' ||
+            l.assignedEmployeeId === 'EMP-1001'
+        );
+      }
       return leads.filter(
         (l) =>
           l.assignedEmployeeId === selectedStaffFilter ||
@@ -271,14 +303,13 @@ export default function CallingCRMView({
           l.assignedEmployeeId === users.find((u) => u.employeeId === selectedStaffFilter)?.name
       );
     }
-    // For Telecaller: The backend /api/leads already filtered by loggedEmployeeId.
-    // Ensure all leads belonging to this telecaller (by ID, Name, or server response) are displayed:
+    // For Telecaller: Show only leads specifically assigned to this telecaller (exclude unassigned pool)
     return leads.filter((l) => {
-      if (!l.assignedEmployeeId) return true;
+      if (!l.assignedEmployeeId || l.assignedEmployeeId === 'UNASSIGNED' || l.assignedEmployeeId === 'ADMIN') return false;
       if (currentEmployeeId && (l.assignedEmployeeId === currentEmployeeId || l.assignedEmployeeId.toLowerCase() === currentEmployeeId.toLowerCase())) return true;
       if (currentTelecaller && l.assignedEmployeeId === currentTelecaller.employeeId) return true;
       if (currentUserName && l.assignedEmployeeId === currentUserName) return true;
-      return true; // Server already securely provided this telecaller's leads
+      return false;
     });
   }, [leads, isAdmin, selectedStaffFilter, users, currentTelecaller, currentUserName, currentEmployeeId]);
 
@@ -450,6 +481,18 @@ export default function CallingCRMView({
 
         {/* Action Header Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Master Lead Bank & Daily Dispatch Button (Admin Only) */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowAllocationModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/20 transition hover:from-amber-600 hover:to-orange-600"
+            >
+              <Database size={17} />
+              <span>Master Lead Bank & Dispatch ({unassignedPoolCount} Pool)</span>
+            </button>
+          )}
+
           {/* Date-Wise Report Button (Admin Only) */}
           {isAdmin && (
             <button
@@ -777,6 +820,7 @@ export default function CallingCRMView({
                 className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-brand-navy outline-none focus:border-brand-orange"
               >
                 <option value="ALL">All Staff ({leads.length} Leads)</option>
+                <option value="UNASSIGNED">⚪ Unassigned Master Pool ({unassignedPoolCount} Leads)</option>
                 {users
                   .filter((u) => u.role === 'TELECALLER')
                   .map((u) => (
@@ -821,12 +865,14 @@ export default function CallingCRMView({
           </div>
         </div>
 
-        <div className="relative min-w-[240px]">
+        {/* Search Input */}
+        <div className="relative min-w-[200px] flex-1 max-w-xs">
           <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
           <input
+            type="text"
+            placeholder="Search leads, phone, city..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search doctor, hospital, phone, city..."
             className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-sm text-slate-800 outline-none focus:border-brand-orange focus:bg-white"
           />
         </div>
@@ -884,8 +930,16 @@ export default function CallingCRMView({
                   </div>
                   {isAdmin && (
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-slate-500">Assigned To:</span>
-                      <span className="font-semibold text-slate-700">{assignedUser?.name || lead.assignedEmployeeId}</span>
+                      <span className="font-medium text-slate-500">Allocation:</span>
+                      {(!lead.assignedEmployeeId || lead.assignedEmployeeId === 'UNASSIGNED' || lead.assignedEmployeeId === 'ADMIN') ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-900 border border-amber-300 text-[10px]">
+                          ⚪ Unassigned Master Pool
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-900 border border-emerald-300 text-[10px]">
+                          🟢 {assignedUser?.name || lead.assignedEmployeeId}
+                        </span>
+                      )}
                     </div>
                   )}
                   {lead.callbackTime && (
@@ -1204,18 +1258,13 @@ export default function CallingCRMView({
                   required
                   value={statusForm.notes}
                   onChange={(e) => setStatusForm({ ...statusForm, notes: e.target.value })}
-                  placeholder="Client se kya baat hui? Unka response, interest ya reason yahan likhein (Mandatory)..."
+                  placeholder="Enter call discussion summary, client response, objections or next steps (Mandatory)..."
                   className={`mt-1 w-full rounded-xl border p-3 text-sm outline-none transition ${
                     !statusForm.notes.trim()
                       ? 'border-slate-300 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange'
                       : 'border-emerald-300 bg-emerald-50/20 focus:border-emerald-500'
                   }`}
                 />
-                {!statusForm.notes.trim() && (
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    ✍️ Telecaller ki client se hui baat-cheet ka vivaran likhna anivarya (mandatory) hai.
-                  </p>
-                )}
               </div>
             </div>
 
@@ -1273,6 +1322,15 @@ export default function CallingCRMView({
         leads={leads}
         users={users}
         auditLogs={auditLogs}
+      />
+
+      {/* Master Leads Bank & Daily Allocation Manager Modal */}
+      <LeadAllocationModal
+        isOpen={showAllocationModal}
+        onClose={() => setShowAllocationModal(false)}
+        leads={leads}
+        users={users}
+        onAllocateLeads={onAllocateLeads || (async () => {})}
       />
     </div>
   );

@@ -14,7 +14,8 @@ import {
   Sparkles,
   ArrowRight,
   Shuffle,
-  UserCheck
+  UserCheck,
+  Database,
 } from 'lucide-react';
 import { AppUser, CallingLead, ClientType } from '@/lib/types';
 import {
@@ -31,7 +32,7 @@ interface Props {
   onImportLeads: (leads: Partial<CallingLead>[]) => Promise<void>;
 }
 
-type AssignmentMode = 'SINGLE' | 'ROUND_ROBIN' | 'MANUAL';
+type AssignmentMode = 'POOL' | 'SINGLE' | 'ROUND_ROBIN' | 'MANUAL';
 
 export default function LeadImportModal({ isOpen, onClose, users, onImportLeads }: Props) {
   const [activeTab, setActiveTab] = useState<'BULK' | 'SINGLE'>('BULK');
@@ -40,8 +41,8 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   
-  // Assignment state
-  const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('SINGLE');
+  // Assignment state (Default to Master Pool)
+  const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('POOL');
   const telecallers = users.filter((u) => u.role === 'TELECALLER');
   const defaultTelecallerId = telecallers[0]?.employeeId || '';
   const [bulkTelecallerId, setBulkTelecallerId] = useState<string>(defaultTelecallerId);
@@ -81,7 +82,12 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
       
       // Apply initial assignment mode
       let assignedRows = [...rows];
-      if (assignmentMode === 'ROUND_ROBIN' && telecallers.length > 0) {
+      if (assignmentMode === 'POOL') {
+        assignedRows = assignedRows.map((r) => ({
+          ...r,
+          assignedEmployeeId: 'UNASSIGNED',
+        }));
+      } else if (assignmentMode === 'ROUND_ROBIN' && telecallers.length > 0) {
         assignedRows = assignedRows.map((r, i) => ({
           ...r,
           assignedEmployeeId: telecallers[i % telecallers.length].employeeId,
@@ -138,7 +144,12 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
 
     setParsedRows((prev) =>
       prev.map((row, index) => {
-        if (mode === 'ROUND_ROBIN' && telecallers.length > 0) {
+        if (mode === 'POOL') {
+          return {
+            ...row,
+            assignedEmployeeId: 'UNASSIGNED',
+          };
+        } else if (mode === 'ROUND_ROBIN' && telecallers.length > 0) {
           return {
             ...row,
             assignedEmployeeId: telecallers[index % telecallers.length].employeeId,
@@ -412,19 +423,37 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
                     <span className="text-xs text-slate-500 font-medium">Choose how leads should be distributed:</span>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Option 0: Save to Master Pool (Recommended) */}
+                    <div
+                      onClick={() => handleAssignmentModeChange('POOL')}
+                      className={`cursor-pointer rounded-xl border p-3 transition ${
+                        assignmentMode === 'POOL'
+                          ? 'border-brand-orange bg-white shadow-sm ring-2 ring-brand-orange'
+                          : 'border-slate-200 bg-white/60 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Database size={16} className={assignmentMode === 'POOL' ? 'text-brand-orange' : 'text-slate-400'} />
+                        <span className="text-xs font-bold text-slate-800">Save to Master Pool</span>
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-500 leading-tight">
+                        Stores all {validCount} leads in unassigned bank. You can allocate 5-10 calls daily on demand.
+                      </p>
+                    </div>
+
                     {/* Option 1: Single Assignee */}
                     <div
                       onClick={() => handleAssignmentModeChange('SINGLE')}
                       className={`cursor-pointer rounded-xl border p-3 transition ${
                         assignmentMode === 'SINGLE'
-                          ? 'border-brand-orange bg-white shadow-sm ring-1 ring-brand-orange'
+                          ? 'border-brand-orange bg-white shadow-sm ring-2 ring-brand-orange'
                           : 'border-slate-200 bg-white/60 hover:bg-white'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <UserCheck size={16} className={assignmentMode === 'SINGLE' ? 'text-brand-orange' : 'text-slate-400'} />
-                        <span className="text-xs font-bold text-slate-800">Assign All to One Telecaller</span>
+                        <span className="text-xs font-bold text-slate-800">Assign to One Telecaller</span>
                       </div>
                       <select
                         value={bulkTelecallerId}
@@ -444,13 +473,13 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
                       onClick={() => handleAssignmentModeChange('ROUND_ROBIN')}
                       className={`cursor-pointer rounded-xl border p-3 transition ${
                         assignmentMode === 'ROUND_ROBIN'
-                          ? 'border-brand-orange bg-white shadow-sm ring-1 ring-brand-orange'
+                          ? 'border-brand-orange bg-white shadow-sm ring-2 ring-brand-orange'
                           : 'border-slate-200 bg-white/60 hover:bg-white'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <Shuffle size={16} className={assignmentMode === 'ROUND_ROBIN' ? 'text-brand-orange' : 'text-slate-400'} />
-                        <span className="text-xs font-bold text-slate-800">Distribute Evenly (Round-Robin)</span>
+                        <span className="text-xs font-bold text-slate-800">Distribute Evenly</span>
                       </div>
                       <p className="mt-2 text-[11px] text-slate-500 leading-tight">
                         Equally splits {validCount} leads across all {telecallers.length} active telecallers automatically.
@@ -462,13 +491,13 @@ export default function LeadImportModal({ isOpen, onClose, users, onImportLeads 
                       onClick={() => setAssignmentMode('MANUAL')}
                       className={`cursor-pointer rounded-xl border p-3 transition ${
                         assignmentMode === 'MANUAL'
-                          ? 'border-brand-orange bg-white shadow-sm ring-1 ring-brand-orange'
+                          ? 'border-brand-orange bg-white shadow-sm ring-2 ring-brand-orange'
                           : 'border-slate-200 bg-white/60 hover:bg-white'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <Users size={16} className={assignmentMode === 'MANUAL' ? 'text-brand-orange' : 'text-slate-400'} />
-                        <span className="text-xs font-bold text-slate-800">Custom Per-Lead Assignment</span>
+                        <span className="text-xs font-bold text-slate-800">Custom Per-Lead</span>
                       </div>
                       <p className="mt-2 text-[11px] text-slate-500 leading-tight">
                         Select specific telecaller individually from the table below for each lead.

@@ -281,6 +281,38 @@ export default function DashboardApp({ session, activeRoute }: Props) {
     }
   };
 
+  const handleAllocateLeads = async (params: {
+    mode: 'SPECIFIC_LEADS' | 'QUICK_COUNT' | 'DISTRIBUTE_EQUALLY';
+    leadIds?: string[];
+    targetEmployeeId?: string;
+    count?: number;
+    countPerTelecaller?: number;
+    telecallerIds?: string[];
+  }) => {
+    try {
+      const response = await fetch('/api/leads/batch-assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setBannerMessage({
+          text: `Leads allocated successfully (${json.updatedCount ?? 'all'} leads dispatched to telecaller queue)!`,
+          type: 'success',
+        });
+        await loadData();
+      } else {
+        const errMsg = json.message ?? 'Failed to allocate leads.';
+        setBannerMessage({ text: errMsg, type: 'error' });
+        throw new Error(errMsg);
+      }
+    } catch (err: any) {
+      console.error('Lead allocation failed:', err);
+      throw err;
+    }
+  };
+
   const handleConvertMeeting = async (payload: {
     meetingId: string;
     dealAmount: number;
@@ -584,6 +616,7 @@ export default function DashboardApp({ session, activeRoute }: Props) {
                   setBookingDate(today);
                 }}
                 onAddNewLead={handleAddNewLead}
+                onAllocateLeads={handleAllocateLeads}
               />
             )}
 
